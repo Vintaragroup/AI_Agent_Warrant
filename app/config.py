@@ -1,28 +1,34 @@
+# app/config.py
+from typing import Optional, Literal
 from pydantic_settings import BaseSettings
-from typing import Literal
 
 class Settings(BaseSettings):
+    # Base
     APP_ENV: str = "dev"
-    SECRET_KEY: str
-    BASE_URL: str
+    SECRET_KEY: str                         # REQUIRED
+    BASE_URL: str                           # REQUIRED (e.g., https://yourservice.onrender.com)
 
-    MONGO_URI: str
-    MONGO_DB: str
+    # MongoDB
+    MONGO_URI: str                          # REQUIRED
+    MONGO_DB: str                           # REQUIRED
 
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
+    # AWS S3 (optional; safe to leave unset if you're not uploading images)
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_REGION: str = "us-east-2"
-    S3_BUCKET: str
+    S3_BUCKET: Optional[str] = None
 
-    TWILIO_ACCOUNT_SID: str | None = None
-    TWILIO_AUTH_TOKEN: str | None = None
-    TWILIO_FROM_NUMBER: str | None = None
+    # Twilio (optional now that you're using Telnyx)
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_FROM_NUMBER: Optional[str] = None
 
-    TELNYX_TOOL_TOKEN: str | None = None
+    # Telnyx tool token (required for your webhooks)
+    TELNYX_TOOL_TOKEN: str                  # REQUIRED
 
+    # IP geolocation (optional)
     IP_GEO_PROVIDER: Literal["ipinfo", "ipapi", "none"] = "none"
-    IP_GEO_TOKEN: str | None = None
-    IP_GEO_TTL_SEC: int = 86400
+    IP_GEO_TOKEN: Optional[str] = None
 
     class Config:
         env_file = ".env"
