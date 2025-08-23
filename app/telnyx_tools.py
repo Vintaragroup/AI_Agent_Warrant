@@ -6,9 +6,12 @@ import time, re
 from bson import ObjectId
 
 from .config import settings
-from .db import db as _db, persons, custody_events, inquiries, logs  # add db handle
+from .db import persons, custody_events, inquiries, logs  # no 'db' import
 
 router = APIRouter(prefix="/telnyx", tags=["telnyx-tools"])
+
+# Get the Database handle from an existing collection
+_db = persons.database  # <-- fixes ImportError on Render
 
 # --------- helpers ---------
 def _auth(req: Request) -> None:
@@ -34,14 +37,9 @@ def _objid(s: str | None) -> Optional[ObjectId]:
         return None
 
 def _latest_custody(person_id: str) -> Optional[dict]:
-    """Return the most recent custody_event doc for a person_id, if any."""
-    return custody_events.find_one(
-        {"person_id": person_id},
-        sort=[("scraped_at", -1)]
-    )
+    return custody_events.find_one({"person_id": person_id}, sort=[("scraped_at", -1)])
 
 def _parse_bond_str(total_bond: str | None) -> Optional[float]:
-    """From strings like '$101,500.00' -> 101500.0. Returns None if missing."""
     if not total_bond:
         return None
     try:
@@ -88,10 +86,9 @@ def _score_simple_hit(doc: dict, want_last: Optional[str], want_first: Optional[
     return sc
 
 def _find_in_simple(full_name: str, *, dob: Optional[str]=None, county_hint: Optional[str]=None) -> Optional[dict]:
-    """Query all simple_* collections using indexed fields and return the best match."""
     first, last = _split_name(full_name)
     if not last and first:
-        last, first = first, None  # single-token -> treat as last name to reduce noise
+        last, first = first, None  # single token -> treat as last name
 
     q: Dict[str, Any] = {}
     if last:
@@ -102,7 +99,6 @@ def _find_in_simple(full_name: str, *, dob: Optional[str]=None, county_hint: Opt
         q["dob"] = dob
 
     cols = _list_simple_cols()
-    # If we have a county hint, search that first
     if county_hint:
         hint = county_hint.lower()
         cols = sorted(cols, key=lambda c: 0 if c.name.endswith(hint) else 1)
@@ -124,7 +120,6 @@ def _bail_view_from_simple(d: dict) -> dict:
             amount = float(d["bond_amount"])
         except Exception:
             amount = None
-    # prefer stored bond string; otherwise synthesize
     total_bond_str = d.get("bond") or (f"${int(amount):,}.00" if amount else None)
     eligible = None if amount is None else (amount > 0)
     return {
@@ -147,12 +142,12 @@ async def find_person(payload: Dict[str, Any], request: Request):
     _auth(request)
     full_name = (payload.get("full_name") or "").strip()
     dob       = (payload.get("dob") or "").strip() or None
-    county    = (payload.get("county") or "").strip() or None  # optional hint; e.g., 'galveston'
+    county    = (payload.get("county") or "").strip() or None
 
     if not full_name:
         raise HTTPException(400, "Provide 'full_name'")
 
-    # FAST PATH: hit simple_* first
+    # FAST PATH: simple_* collections
     s = _find_in_simple(full_name, dob=dob, county_hint=county)
     if s:
         latest = {
@@ -174,7 +169,7 @@ async def find_person(payload: Dict[str, Any], request: Request):
         }
         return {"found": True, "person": person_out, "latest_custody": latest}
 
-    # FALLBACK: legacy path (persons + custody_events)
+    # FALLBACK: persons + custody_events
     q: Dict[str, Any] = {"full_name": full_name}
     if dob:
         q["dob"] = dob
@@ -186,7 +181,6 @@ async def find_person(payload: Dict[str, Any], request: Request):
     pid = str(pdoc.get("_id"))
     latest = _latest_custody(pid)
 
-    # If county hint provided, prefer a custody_event for that county
     if county and latest and (latest.get("county") or "").lower() != county.lower():
         latest = custody_events.find_one(
             {"person_id": pid, "county": {"$regex": f"^{re.escape(county)}$", "$options": "i"}},
@@ -222,7 +216,7 @@ async def find_person(payload: Dict[str, Any], request: Request):
 async def get_bail_status(payload: Dict[str, Any], request: Request):
     """
     Get simple bail status/amount. Accepts person_id OR full_name(+optional dob).
-    Tries simple_* first, then falls back to persons/custody_events.
+    Tries simple_* first, then persons/custody_events.
     """
     _auth(request)
 
@@ -231,13 +225,13 @@ async def get_bail_status(payload: Dict[str, Any], request: Request):
     dob       = (payload.get("dob") or "").strip() or None
     county    = (payload.get("county") or "").strip() or None
 
-    # FAST PATH: if we have a name, try simple_* directly
+    # FAST PATH: name lookup in simple_* first
     if full_name:
         s = _find_in_simple(full_name, dob=dob, county_hint=county)
         if s:
             return _bail_view_from_simple(s)
 
-    # FALLBACK
+    # FALLBACK: persons + custody_events
     pdoc = None
     if person_id:
         oid = _objid(person_id)
