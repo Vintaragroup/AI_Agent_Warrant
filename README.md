@@ -52,4 +52,4 @@ Endpoints under `/telnyx/*` allow Telnyx AI Assistant to:
 - create bail inquiries
 
 Set `TELNYX_TOOL_TOKEN` in your `.env` and pass it as a `Bearer` token from Telnyx tools.
-See `app/telnyx_tools.py` for payloads and responses.
+See `app/telnyx_tools.py` for payloads and responses. For a full walkthrough, read `docs/Telnyx_Integration.md`. For the call flow and prompts used by the AI voice agent, see `docs/AI_Agent_Voice_Script.md`.

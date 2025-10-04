@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # Telnyx tool token (required for your webhooks)
     TELNYX_TOOL_TOKEN: str                  # REQUIRED
 
+    # Optional: County → office phone routing
+    # Provide JSON like: {"harris":"+18324101662","brazoria":"+18325550123"}
+    OFFICE_ROUTES_JSON: Optional[str] = None
+    # Optional: Fallback transfer number if county not mapped
+    DEFAULT_OFFICE_NUMBER: Optional[str] = None
+
     # IP geolocation (optional)
     IP_GEO_PROVIDER: Literal["ipinfo", "ipapi", "none"] = "none"
     IP_GEO_TOKEN: Optional[str] = None

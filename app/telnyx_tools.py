@@ -1,14 +1,20 @@
 # app/telnyx_tools.py
 from __future__ import annotations
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.security import HTTPBearer
 from typing import Any, Dict, Optional
 import time, re
 from bson import ObjectId
 
 from .config import settings
-from .db import persons, custody_events, inquiries, logs  # no 'db' import
+from .db import persons, custody_events, inquiries, logs, cases  # no 'db' import
 
-router = APIRouter(prefix="/telnyx", tags=["telnyx-tools"])
+# Expose Bearer auth in OpenAPI/Swagger; _auth below still validates the exact token
+router = APIRouter(
+    prefix="/telnyx",
+    tags=["telnyx-tools"],
+    dependencies=[Depends(HTTPBearer())]
+)
 
 # Get the Database handle from an existing collection
 _db = persons.database  # <-- fixes ImportError on Render
@@ -46,6 +52,55 @@ def _parse_bond_str(total_bond: str | None) -> Optional[float]:
         return float(total_bond.replace("$", "").replace(",", ""))
     except Exception:
         return None
+
+def _parse_bond_label(s: str | None) -> tuple[Optional[float], Optional[bool]]:
+    """Parse assorted bond label strings.
+    Returns (amount_numeric, eligible) where eligible may be None if unknown.
+    Examples handled: "$5,000.00", "5000", "No Bond", "PR Bond".
+    """
+    if not s:
+        return None, None
+    txt = s.strip().lower()
+    if "no bond" in txt:
+        return None, False
+    if "pr bond" in txt or "personal recognizance" in txt:
+        # Treat PR as bond amount 0 but eligible False for posting
+        return 0.0, False
+    # Extract first money-like token
+    m = re.search(r"\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+)", s)
+    if m:
+        try:
+            val = float(m.group(1).replace(",", ""))
+            return val, (val > 0)
+        except Exception:
+            return None, None
+    return None, None
+
+def _needs_human_review(text: Optional[str], status: Optional[str]) -> bool:
+    """Heuristic to flag when a human should review/advise caller.
+    Triggers on phrases like 'refer to magistrate', 'pending', 'see judge', etc.
+    """
+    blob = f"{text or ''} {status or ''}".lower()
+    return bool(re.search(r"refer|magistrate|see\s+(?:the\s+)?judge|pending|tbd|set by|to be|not available|call|contact", blob))
+
+# ---------- office routing ----------
+import json as _json
+
+def _office_phone_for_county(county: Optional[str]) -> Optional[str]:
+    """Return E.164 office phone for a county using settings routes, else default.
+    Match is case-insensitive; uses normalized county key.
+    """
+    try:
+        routes = (_json.loads(settings.OFFICE_ROUTES_JSON) if settings.OFFICE_ROUTES_JSON else {})
+    except Exception:
+        routes = {}
+    key = (county or "").strip().lower()
+    if key in routes:
+        return routes.get(key)
+    # try simple normalization (drop ' county')
+    if key.endswith(" county") and key[:-7] in routes:
+        return routes.get(key[:-7])
+    return settings.DEFAULT_OFFICE_NUMBER
 
 # ---------- FAST PATH over simple_* collections ----------
 SIMPLE_COUNTIES = ["harris", "brazoria", "galveston", "fortbend"]
@@ -114,22 +169,64 @@ def _find_in_simple(full_name: str, *, dob: Optional[str]=None, county_hint: Opt
     return best
 
 def _bail_view_from_simple(d: dict) -> dict:
+    # Prefer explicit numeric bond_amount when present
     amount = None
     if d.get("bond_amount") is not None:
         try:
             amount = float(d["bond_amount"])
         except Exception:
             amount = None
-    total_bond_str = d.get("bond") or (f"${int(amount):,}.00" if amount else None)
+
+    total_bond_str = d.get("bond")
     eligible = None if amount is None else (amount > 0)
+
+    # Harris often uses bond_label instead of bond/bond_amount
+    if amount is None and (not total_bond_str):
+        amt2, elig2 = _parse_bond_label(d.get("bond_label") or d.get("dbg_bond_note"))
+        if amt2 is not None:
+            amount = amt2
+            total_bond_str = f"${int(amt2):,}.00"
+            eligible = elig2 if elig2 is not None else (amt2 > 0)
+        elif elig2 is not None:
+            # we know it's no/PR bond, but no numeric
+            eligible = elig2
+
+    # If we had amount but no string, format a default string
+    if (not total_bond_str) and (amount is not None):
+        total_bond_str = f"${int(amount):,}.00"
+
+    bond_text = d.get("bond") or d.get("bond_label") or d.get("dbg_bond_note")
+    needs_review = (amount is None) and _needs_human_review(bond_text, d.get("category") or d.get("status"))
+
     return {
         "found": True,
         "has_custody": True,
         "status": d.get("category") or "In Custody",
         "total_bond": total_bond_str,
         "amount_numeric": amount,
-        "eligible": eligible
+        "eligible": eligible,
+        "bond_text": bond_text,
+        "needs_human_review": needs_review
     }
+
+def _resolve_person_id_from_payload(person_id: str | None, full_name: str | None, dob: str | None) -> Optional[str]:
+    """Resolve and return person_id (as string) if possible.
+    Does not create new persons; only matches existing.
+    """
+    if person_id:
+        oid = _objid(person_id)
+        if not oid:
+            return None
+        pdoc = persons.find_one({"_id": oid})
+        return str(pdoc["_id"]) if pdoc else None
+    if full_name:
+        q: Dict[str, Any] = {"full_name": full_name}
+        if dob:
+            q["dob"] = dob
+        pdoc = persons.find_one(q)
+        if pdoc:
+            return str(pdoc["_id"])  # type: ignore[index]
+    return None
 
 # --------- endpoints ---------
 
@@ -260,13 +357,18 @@ async def get_bail_status(payload: Dict[str, Any], request: Request):
         status = (c.get("status") or "").lower()
         eligible = not ("release" in status or "no bond" in (c.get("total_bond") or "").lower())
 
+    bond_text = c.get("total_bond")
+    needs_review = (amount_num is None) and _needs_human_review(bond_text, c.get("status"))
+
     return {
         "found": True,
         "has_custody": True,
         "status": c.get("status"),
         "total_bond": c.get("total_bond"),
         "amount_numeric": amount_num,
-        "eligible": eligible
+        "eligible": eligible,
+        "bond_text": bond_text,
+        "needs_human_review": needs_review
     }
 
 @router.post("/create_bail_inquiry")
@@ -303,3 +405,106 @@ async def create_bail_inquiry(payload: Dict[str, Any], request: Request):
 
     logs.insert_one({"type":"telnyx_create_inquiry","inquiry_id":str(res.inserted_id),"ts":int(time.time())})
     return {"ok": True, "inquiry_id": str(res.inserted_id)}
+
+@router.post("/attach_caller")
+async def attach_caller_to_case(payload: Dict[str, Any], request: Request):
+    """
+    Attach caller info to an existing case CRM (if a case exists for the inmate),
+    and persist an inquiry record regardless. This is intended to be called after
+    the agent confirms the inmate and bail exists.
+
+    Input JSON:
+    - person_id OR full_name (+optional dob)
+    - caller_name (required)
+    - caller_phone (E.164, required)
+    - relationship (optional)
+    - intends_to_post (bool, optional)
+    - notes (optional)
+    Returns: { ok, inquiry_id, linked_to_case, case_id? }
+    """
+    _auth(request)
+
+    person_id   = (payload.get("person_id") or "").strip()
+    full_name   = (payload.get("inmate_name") or payload.get("full_name") or "").strip()
+    dob         = (payload.get("dob") or "").strip() or None
+    caller_name = (payload.get("caller_name") or "").strip()
+    caller_ph   = _e164(payload.get("caller_phone"))
+    relationship= (payload.get("relationship") or "").strip() or None
+    intends     = bool(payload.get("intends_to_post", False))
+    notes       = (payload.get("notes") or "").strip() or None
+
+    if not person_id and not full_name:
+        raise HTTPException(400, "person_id or full_name required")
+    if not caller_name or not caller_ph:
+        raise HTTPException(400, "Valid caller_name and caller_phone (E.164) required")
+
+    # First, persist the inquiry record
+    inquiry_doc = {
+        "person_id": person_id or None,
+        "full_name": full_name or None,
+        "caller_name": caller_name,
+        "caller_phone": caller_ph,
+        "relationship": relationship,
+        "intends_to_post": intends,
+        "notes": notes,
+        "created_ts": int(time.time())
+    }
+    res = inquiries.insert_one(inquiry_doc)
+
+    # Attempt to resolve person_id to link to a case
+    pid = _resolve_person_id_from_payload(person_id or None, full_name or None, dob)
+    linked = False
+    case_id_out: Optional[str] = None
+    if pid:
+        case_doc = cases.find_one({"person_id": pid})
+        if case_doc:
+            case_id_out = case_doc.get("case_id") or str(case_doc.get("_id"))
+            # Upsert CRM contact into the case document
+            cases.update_one(
+                {"_id": case_doc["_id"]},
+                {"$push": {"crm_contacts": {
+                    "ts": int(time.time()),
+                    "inquiry_id": str(res.inserted_id),
+                    "caller_name": caller_name,
+                    "caller_phone": caller_ph,
+                    "relationship": relationship,
+                    "intends_to_post": intends,
+                    "notes": notes,
+                }},
+                 "$set": {"crm_updated_ts": int(time.time())}}
+            )
+            linked = True
+        else:
+            logs.insert_one({
+                "type": "telnyx_attach_no_case",
+                "person_id": pid,
+                "inquiry_id": str(res.inserted_id),
+                "ts": int(time.time())
+            })
+    else:
+        logs.insert_one({
+            "type": "telnyx_attach_unresolved_person",
+            "full_name": full_name,
+            "inquiry_id": str(res.inserted_id),
+            "ts": int(time.time())
+        })
+
+    return {
+        "ok": True,
+        "inquiry_id": str(res.inserted_id),
+        "linked_to_case": linked,
+        "case_id": case_id_out
+    }
+
+@router.post("/transfer_target")
+async def transfer_target(payload: Dict[str, Any], request: Request):
+    """
+    Resolve the best transfer phone number (E.164) for an office based on county.
+    Input JSON: { county?: string }
+    Returns: { ok: true, phone?: "+1..." }
+    If no county match and no default is configured, phone will be null.
+    """
+    _auth(request)
+    county = (payload.get("county") or "").strip() or None
+    phone = _office_phone_for_county(county)
+    return {"ok": True, "phone": phone}
