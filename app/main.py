@@ -17,7 +17,16 @@ app = FastAPI()
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok"}
+    # Introspect mounted routes for visibility
+    paths = {getattr(r, 'path', None) for r in app.router.routes}
+    return {
+        "status": "ok",
+        "build": getattr(settings, "BUILD_SHA", None),
+        "has_transfer_plan": "/telnyx/transfer_plan" in paths,
+        "has_transfer_target": "/telnyx/transfer_target" in paths,
+        "has_attach_caller": "/telnyx/attach_caller" in paths,
+        "has_ai_events": "/telnyx/ai_events" in paths
+    }
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 tpl = Jinja2Templates(directory="app/templates")

@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     IP_GEO_PROVIDER: Literal["ipinfo", "ipapi", "none"] = "none"
     IP_GEO_TOKEN: Optional[str] = None
 
+    # Optional: build/commit identifier for deployment visibility
+    BUILD_SHA: Optional[str] = None
+
     class Config:
         env_file = ".env"
 
