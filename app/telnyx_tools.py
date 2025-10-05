@@ -8,6 +8,7 @@ from bson import ObjectId
 
 from .config import settings
 from .db import persons, custody_events, inquiries, logs, cases  # no 'db' import
+from .sms import send_sms
 
 # Expose Bearer auth in OpenAPI/Swagger; _auth below still validates the exact token
 router = APIRouter(
@@ -93,6 +94,68 @@ def _needs_human_review(text: Optional[str], status: Optional[str]) -> bool:
     """
     blob = f"{text or ''} {status or ''}".lower()
     return bool(re.search(r"refer|magistrate|see\s+(?:the\s+)?judge|pending|tbd|set by|to be|not available|call|contact", blob))
+
+def _compose_agent_sms(
+    *,
+    county: Optional[str],
+    inmate: Optional[dict],
+    bail: Optional[dict],
+    caller: Optional[dict],
+    summary: Optional[str]
+) -> str:
+    """Build a concise SMS (<= 320 chars) for the on-call agent.
+    inmate: { full_name?, dob? }
+    bail: { total_bond?, amount_numeric?, eligible?, bond_text?, needs_human_review? }
+    caller: { name?, phone?, relationship?, intends_to_post? }
+    """
+    parts: list[str] = []
+    if county:
+        parts.append(f"New transfer ({county.title()}):")
+    else:
+        parts.append("New transfer:")
+
+    if inmate:
+        nm = inmate.get("full_name") or inmate.get("name")
+        dob = inmate.get("dob")
+        if nm and dob:
+            parts.append(f"Inmate {nm} (DOB {dob})")
+        elif nm:
+            parts.append(f"Inmate {nm}")
+
+    if bail:
+        tb = bail.get("total_bond") or bail.get("bond_text")
+        elig = bail.get("eligible")
+        need = bail.get("needs_human_review")
+        if tb:
+            parts.append(f"Bail {tb}")
+        if elig is True:
+            parts.append("Eligible")
+        elif elig is False:
+            parts.append("Not eligible")
+        elif need:
+            parts.append("Needs review")
+
+    if caller:
+        cname = caller.get("name")
+        cph = caller.get("phone")
+        rel = caller.get("relationship")
+        intends = caller.get("intends_to_post")
+        if cname and cph:
+            parts.append(f"Caller {cname} {cph}")
+        elif cname:
+            parts.append(f"Caller {cname}")
+        elif cph:
+            parts.append(f"Caller {cph}")
+        if rel:
+            parts.append(rel)
+        if intends is True:
+            parts.append("intends to post")
+
+    if summary:
+        parts.append(f"Summary: {summary}")
+
+    msg = " | ".join([p for p in parts if p])
+    return (msg[:317] + "...") if len(msg) > 320 else msg
 
 # ---------- office routing ----------
 import json as _json
@@ -680,6 +743,37 @@ async def schedule_status(request: Request, county: Optional[str] = None, lang: 
         "sample_plan": plan,
         "fallback_via_routes": fallback
     }
+
+@router.post("/notify_agent")
+async def notify_agent(payload: Dict[str, Any], request: Request):
+    """Send an SMS summary to the on-call agent before/while transferring.
+    Input JSON:
+    - to_phone (E.164, required)
+    - county (optional)
+    - inmate (object with full_name?, dob?)
+    - bail (object with total_bond?, amount_numeric?, eligible?, bond_text?, needs_human_review?)
+    - caller (object with name?, phone?, relationship?, intends_to_post?)
+    - summary (string, optional freeform notes/summary)
+    Returns: { ok: true }
+    """
+    _auth(request)
+    to = _e164(payload.get("to_phone"))
+    if not to:
+        raise HTTPException(400, "Valid E.164 'to_phone' required")
+    county = (payload.get("county") or "").strip() or None
+    inmate = payload.get("inmate") or {}
+    bail = payload.get("bail") or {}
+    caller = payload.get("caller") or {}
+    summary = (payload.get("summary") or "").strip() or None
+
+    body = _compose_agent_sms(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    try:
+        res = send_sms(to, body)
+        logs.insert_one({"type":"notify_agent_sms","to":to,"body":body,"ts":int(time.time()),"res":res})
+        return {"ok": True}
+    except Exception as e:
+        logs.insert_one({"type":"notify_agent_sms_error","to":to,"err":str(e),"ts":int(time.time())})
+        raise HTTPException(500, "Failed to send SMS")
 
 # ---------- optional webhooks ----------
 @router.post("/ai_events")
