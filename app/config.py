@@ -25,12 +25,32 @@ class Settings(BaseSettings):
 
     # Telnyx tool token (required for your webhooks)
     TELNYX_TOOL_TOKEN: str                  # REQUIRED
+    # Optional shared secret for Telnyx webhooks (X-Telnyx-Secret header)
+    TELNYX_WEBHOOK_SECRET: Optional[str] = None
 
     # Optional: County → office phone routing
     # Provide JSON like: {"harris":"+18324101662","brazoria":"+18325550123"}
     OFFICE_ROUTES_JSON: Optional[str] = None
     # Optional: Fallback transfer number if county not mapped
     DEFAULT_OFFICE_NUMBER: Optional[str] = None
+
+    # Optional: Time-aware office schedules per county
+    # JSON format example:
+    # {
+    #   "harris": [
+    #     {"days":["mon","tue","wed","thu","fri"],"start":"08:00","end":"18:00","numbers":["+18324100001","+18324100002"]},
+    #     {"days":["mon","tue","wed","thu","fri"],"start":"18:00","end":"23:59","numbers":["+17130001111","+17130002222"]},
+    #     {"days":["sat","sun"],"start":"00:00","end":"23:59","numbers":["+17130003333","+17130004444"]}
+    #   ],
+    #   "default": [
+    #     {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"00:00","end":"23:59","numbers":["+18325550000"]}
+    #   ]
+    # }
+    OFFICES_SCHEDULE_JSON: Optional[str] = None
+    # Application timezone used to evaluate schedules (IANA tz database name)
+    APP_TZ: str = "America/Chicago"
+    # Suggested per-number attempt timeout (seconds) for the agent UI
+    DIAL_ATTEMPT_TIMEOUT_SEC: int = 20
 
     # IP geolocation (optional)
     IP_GEO_PROVIDER: Literal["ipinfo", "ipapi", "none"] = "none"

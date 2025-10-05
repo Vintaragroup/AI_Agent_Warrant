@@ -18,6 +18,7 @@ The module is mounted under `/telnyx/*` and is intended for machine-to-machine c
 - Mounted in app: `app.main` → `app.include_router(telnyx_router)`
 - Config: `app/config.py` (reads `TELNYX_TOOL_TOKEN`)
   - Optional office routing: `OFFICE_ROUTES_JSON`, `DEFAULT_OFFICE_NUMBER`
+  - Optional schedule routing: `OFFICES_SCHEDULE_JSON`, `APP_TZ`, `DIAL_ATTEMPT_TIMEOUT_SEC`
 - DB collections: declared in `app/db.py` (MongoDB)
 
 ## Authentication
@@ -198,6 +199,87 @@ DEFAULT_OFFICE_NUMBER='+18325550000'
 Notes:
 - Match is case-insensitive. Keys are compared on lowercase; a trailing “ county” is tolerated.
 - If no county matches, the `DEFAULT_OFFICE_NUMBER` is returned (if set), otherwise `phone` is null.
+
+### POST /telnyx/transfer_plan
+
+Return an ordered list of numbers to dial based on county and time-of-day/day-of-week.
+
+Input JSON:
+
+```
+{ "county": "Harris", "lang": "es" }  // lang optional; use for Spanish route if configured
+```
+
+Response:
+
+```
+{
+  "ok": true,
+  "numbers": ["+18324100001", "+17130001111"],
+  "attempt_timeout_sec": 20
+}
+```
+
+Configuration:
+
+```
+OFFICES_SCHEDULE_JSON='{
+  "harris": [
+    {"days":["mon","tue","wed","thu","fri"],"start":"08:00","end":"18:00","numbers":["+18324100001","+18324100002"]},
+    {"days":["mon","tue","wed","thu","fri"],"start":"18:00","end":"07:59","numbers":["+17130001111","+17130002222"]},
+    {"days":["sat","sun"],"start":"00:00","end":"23:59","numbers":["+17130003333","+17130004444"]}
+  ],
+  "brazoria": [
+    {"days":["mon","tue","wed","thu","fri"],"start":"09:00","end":"17:00","numbers":["+18325550101","+18325550102"]},
+    {"days":["sat","sun"],"start":"00:00","end":"23:59","numbers":["+17130005555","+17130006666"]}
+  ],
+  "galveston": [
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"00:00","end":"23:59","numbers":["+18325550987"]}
+  ],
+  "fortbend": [
+    {"days":["mon","tue","wed","thu","fri"],"start":"07:00","end":"19:00","numbers":["+18325550777","+18325550778"]},
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"19:00","end":"06:59","numbers":["+17130007777"]}
+  ],
+  "default": [
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"00:00","end":"23:59","numbers":["+18325550000"]}
+  ]
+}'
+APP_TZ='America/Chicago'
+DIAL_ATTEMPT_TIMEOUT_SEC=20
+```
+
+Notes:
+ - Harris policy: when matching the `harris` schedule (non‑Spanish), if the first on‑call number doesn’t answer within the attempt timeout (roughly 3 rings), the next attempt will automatically be Alex (Spanish line) before trying any other fallbacks. Set `DIAL_ATTEMPT_TIMEOUT_SEC` to ~18–20 seconds to align with ~3 rings.
+
+Example: Harris county schedule (with real numbers)
+
+```
+// People on rota (for your reference only):
+// Jennie (Weekdays 8:30 AM–2:59 PM)
+// Dylo (Mon/Wed/Fri 3:00 PM–7:59 PM; Sat/Sun 8:30 AM–2:59 PM)
+// KG   (Tue/Thu 3:00 PM–7:59 PM; Sat/Sun 3:00 PM–7:59 PM)
+// Jerry (Overnight daily 8:00 PM–7:00 AM)
+// Alex  (Spanish calls)
+
+OFFICES_SCHEDULE_JSON='{
+  "harris": [
+    {"days":["mon","tue","wed","thu","fri"],"start":"08:30","end":"14:59","numbers":["+18326101254"]},  // Jennie
+    {"days":["mon","wed","fri"],"start":"15:00","end":"19:59","numbers":["+18324339385"]},               // Dylo
+    {"days":["tue","thu"],"start":"15:00","end":"19:59","numbers":["+17134464076"]},                      // KG
+    {"days":["sat","sun"],"start":"08:30","end":"14:59","numbers":["+18324339385"]},                       // Dylo (weekend midday)
+    {"days":["sat","sun"],"start":"15:00","end":"19:59","numbers":["+17134464076"]},                       // KG (weekend afternoon)
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"20:00","end":"07:00","numbers":["+14098536685"]} // Jerry overnight
+  ],
+  "harris_es": [
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"00:00","end":"23:59","numbers":["+18328732866"]}  // Alex (Spanish)
+  ],
+  "default": [
+    {"days":["mon","tue","wed","thu","fri","sat","sun"],"start":"00:00","end":"23:59","numbers":["+17132252727"]}    // Main number fallback
+  ]
+}'
+```
+
+Replace the +1… placeholders with your actual E.164 numbers.
 - `_bail_view_from_simple(doc)`: Shapes a uniform bail response from simple_* docs.
 
 ## MongoDB schema expectations (minimal)
@@ -236,6 +318,58 @@ Example tool definition (pseudocode):
 Repeat similarly for `get_bail_status` and `create_bail_inquiry`.
 
 See also: `docs/AI_Agent_Voice_Script.md` for the recommended call flow and prompts leveraging `bond_text` and `needs_human_review`.
+
+## Telnyx Portal setup (step-by-step)
+
+1) Assign your phone number to an AI Assistant
+- In Telnyx → AI → Assistants → Create (or edit existing)
+- Voice: choose ElevenLabs Lina (or your preferred voice)
+- Model: Anthropic Claude 3.7 Sonnet (recommended)
+- Phone Numbers: assign +1 713-225-2727 to this Assistant
+
+2) Add Tools for your backend endpoints
+- Tools → Add HTTP Tool for each endpoint:
+  - POST ${BASE_URL}/telnyx/find_person
+  - POST ${BASE_URL}/telnyx/get_bail_status
+  - POST ${BASE_URL}/telnyx/create_bail_inquiry
+  - POST ${BASE_URL}/telnyx/attach_caller
+  - POST ${BASE_URL}/telnyx/transfer_plan (primary)
+  - POST ${BASE_URL}/telnyx/transfer_target (fallback)
+- Headers (for each Tool): Authorization: Bearer ${TELNYX_TOOL_TOKEN}
+
+3) Configure environment in your app
+- In your .env:
+  - BASE_URL=https://YOUR_DOMAIN
+  - TELNYX_TOOL_TOKEN=your-long-random-token
+  - OFFICES_SCHEDULE_JSON=... (see Harris example above)
+  - APP_TZ=America/Chicago
+  - DIAL_ATTEMPT_TIMEOUT_SEC=20
+
+4) Optional: Add webhooks for transcripts and call analytics
+- In Telnyx → Assistants → Webhooks → set Event Webhook URL:
+  - ${BASE_URL}/telnyx/ai_events
+- Optional Shared Secret (recommended): set a random secret; in your .env set:
+  - TELNYX_WEBHOOK_SECRET=the-same-secret
+- (Optional) Call status webhooks (if you also use Call Control app):
+  - Webhook URL: ${BASE_URL}/telnyx/call_events
+- (Optional) Recording webhooks (if you enable recording):
+  - Webhook URL: ${BASE_URL}/telnyx/recording_ready
+
+Request format Telnyx will POST (examples vary):
+```json
+{
+  "type": "ai.event",
+  "data": {
+    "session_id": "...",
+    "event": "transcript.final",
+    "text": "caller: ..."
+  }
+}
+```
+
+Verification:
+- Telnyx will include X-Telnyx-Secret: <secret> if configured; the app verifies it.
+- These webhook endpoints do not require the Bearer tool token.
 
 ### POST /telnyx/attach_caller
 Attach caller info to a case CRM if a case exists for the inmate; always records an inquiry.

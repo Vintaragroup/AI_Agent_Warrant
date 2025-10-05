@@ -28,6 +28,17 @@ def _auth(req: Request) -> None:
     if token != settings.TELNYX_TOOL_TOKEN:
         raise HTTPException(status_code=403, detail="Invalid token")
 
+def _verify_webhook_secret(req: Request) -> None:
+    """Optional lightweight verification for webhook posts via a shared secret header.
+    If TELNYX_WEBHOOK_SECRET is set in settings, require header 'X-Telnyx-Secret' to match.
+    """
+    secret = getattr(settings, "TELNYX_WEBHOOK_SECRET", None)
+    if not secret:
+        return
+    hdr = req.headers.get("x-telnyx-secret")
+    if not hdr or hdr != secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
 def _e164(phone: str | None) -> Optional[str]:
     if not phone:
         return None
@@ -85,6 +96,11 @@ def _needs_human_review(text: Optional[str], status: Optional[str]) -> bool:
 
 # ---------- office routing ----------
 import json as _json
+from datetime import datetime, time as dtime
+try:
+    import zoneinfo  # Python 3.9+
+except Exception:  # pragma: no cover
+    zoneinfo = None
 
 def _office_phone_for_county(county: Optional[str]) -> Optional[str]:
     """Return E.164 office phone for a county using settings routes, else default.
@@ -101,6 +117,93 @@ def _office_phone_for_county(county: Optional[str]) -> Optional[str]:
     if key.endswith(" county") and key[:-7] in routes:
         return routes.get(key[:-7])
     return settings.DEFAULT_OFFICE_NUMBER
+
+def _transfer_numbers_by_schedule(county: Optional[str], lang: Optional[str] = None) -> list[str]:
+    """Return an ordered list of phone numbers based on OFFICES_SCHEDULE_JSON.
+    If no schedule match, fall back to OFFICE_ROUTES_JSON or default.
+    """
+    numbers: list[str] = []
+    # Parse schedule JSON
+    try:
+        sched = _json.loads(settings.OFFICES_SCHEDULE_JSON) if settings.OFFICES_SCHEDULE_JSON else {}
+    except Exception:
+        sched = {}
+    tzname = settings.APP_TZ or "UTC"
+    tz = zoneinfo.ZoneInfo(tzname) if zoneinfo else None
+    now = datetime.now(tz) if tz else datetime.utcnow()
+    dow = ["mon","tue","wed","thu","fri","sat","sun"][now.weekday()]
+    cur_min = now.hour * 60 + now.minute
+
+    key = (county or "").strip().lower()
+    langkey = f"{key}_{(lang or '').strip().lower()}" if lang else None
+    # candidates: county+lang, county-specific, normalized without ' county', then default
+    selected_key: Optional[str] = None
+    for k in [langkey, key, key[:-7] if key.endswith(" county") else None, "default"]:
+        if not k:
+            continue
+        rules = sched.get(k)
+        if not rules:
+            continue
+        for r in rules:
+            days = [d.lower() for d in r.get("days", [])]
+            s = r.get("start","00:00")
+            e = r.get("end","23:59")
+            try:
+                sh, sm = [int(x) for x in s.split(":",1)]
+                eh, em = [int(x) for x in e.split(":",1)]
+            except Exception:
+                sh, sm, eh, em = 0, 0, 23, 59
+            start_min = sh*60 + sm
+            end_min = eh*60 + em
+            in_window = False
+            if dow in days:
+                if start_min <= end_min:
+                    in_window = (start_min <= cur_min <= end_min)
+                else:
+                    # window wraps past midnight
+                    in_window = (cur_min >= start_min or cur_min <= end_min)
+            if in_window:
+                arr = [p for p in r.get("numbers", []) if isinstance(p, str) and p.startswith("+")]
+                numbers.extend(arr)
+        if numbers:
+            selected_key = k
+            break
+
+    # Dedupe while preserving order
+    seen = set()
+    deduped: list[str] = []
+    for n in numbers:
+        if n not in seen:
+            deduped.append(n)
+            seen.add(n)
+    numbers = deduped
+
+    # Harris-specific policy: if we matched Harris (non-Spanish) schedule, insert Alex (Spanish fallback) as the next attempt.
+    try:
+        if selected_key == "harris" and (not lang or lang.lower() != "es"):
+            # find Alex from the 'harris_es' schedule (first available number)
+            r_es = sched.get("harris_es") or []
+            alex_num: Optional[str] = None
+            for rr in r_es:
+                arr = [p for p in rr.get("numbers", []) if isinstance(p, str) and p.startswith("+")]
+                if arr:
+                    alex_num = arr[0]
+                    break
+            if alex_num and alex_num not in numbers:
+                if numbers:
+                    numbers.insert(1, alex_num)
+                else:
+                    numbers.append(alex_num)
+    except Exception:
+        pass
+
+    # if still empty, fallback to single route
+    if not numbers:
+        one = _office_phone_for_county(county)
+        if one:
+            numbers.append(one)
+    # final fallback: none
+    return numbers
 
 # ---------- FAST PATH over simple_* collections ----------
 SIMPLE_COUNTIES = ["harris", "brazoria", "galveston", "fortbend"]
@@ -508,3 +611,60 @@ async def transfer_target(payload: Dict[str, Any], request: Request):
     county = (payload.get("county") or "").strip() or None
     phone = _office_phone_for_county(county)
     return {"ok": True, "phone": phone}
+
+@router.post("/transfer_plan")
+async def transfer_plan(payload: Dict[str, Any], request: Request):
+    """
+    Return an ordered list of phone numbers to try, based on county and schedule.
+    Input JSON: { county?: string }
+    Response: { ok: true, numbers: ["+1...", "+1..."], attempt_timeout_sec: number }
+    """
+    _auth(request)
+    county = (payload.get("county") or "").strip() or None
+    lang = (payload.get("lang") or "").strip() or None
+    numbers = _transfer_numbers_by_schedule(county, lang)
+    return {
+        "ok": True,
+        "numbers": numbers,
+        "attempt_timeout_sec": int(settings.DIAL_ATTEMPT_TIMEOUT_SEC or 20)
+    }
+
+# ---------- optional webhooks ----------
+@router.post("/ai_events")
+async def telnyx_ai_events(payload: Dict[str, Any], request: Request):
+    """Receive Telnyx AI Assistant events (session start/end, tool calls, transcripts).
+    Secured with optional X-Telnyx-Secret if configured. Does not require Bearer token.
+    """
+    _verify_webhook_secret(request)
+    logs.insert_one({
+        "type": "telnyx_ai_events",
+        "ts": int(time.time()),
+        "payload": payload
+    })
+    return {"ok": True}
+
+@router.post("/call_events")
+async def telnyx_call_events(payload: Dict[str, Any], request: Request):
+    """Receive telephony-level call status events if configured in Telnyx.
+    Secured with optional X-Telnyx-Secret.
+    """
+    _verify_webhook_secret(request)
+    logs.insert_one({
+        "type": "telnyx_call_events",
+        "ts": int(time.time()),
+        "payload": payload
+    })
+    return {"ok": True}
+
+@router.post("/recording_ready")
+async def telnyx_recording_ready(payload: Dict[str, Any], request: Request):
+    """Receive recording availability notifications (URL) when enabled in Telnyx.
+    Secured with optional X-Telnyx-Secret.
+    """
+    _verify_webhook_secret(request)
+    logs.insert_one({
+        "type": "telnyx_recording_ready",
+        "ts": int(time.time()),
+        "payload": payload
+    })
+    return {"ok": True}

@@ -95,10 +95,17 @@ If caller wants immediate transfer at any time:
 
 ### 5) Transfer
 
-- “Thanks—I’m connecting you to an on‑call representative now.”
+
+If county is known:
+ - Spanish callers: include { lang: "es" } in the body to route to the Spanish schedule (e.g., Alex for Harris) when configured. Example body: { "county": "Harris", "lang": "es" }.
 
 If the caller prefers a callback:
 - “I’ll have a representative call you shortly at the number you provided.”
+
+No‑answer flow:
+- “No answer on the first line. I’ll try another number now.”
+- If second attempt also fails: “I’m not getting an answer at the moment. Would you like me to keep trying and call you back as soon as someone picks up, or would you prefer we call you back when an agent is available?”
+- If they choose “keep trying,” confirm callback number and proceed with additional attempts as allowed by your dial policy.
 
 ---
 
@@ -147,6 +154,8 @@ Example (SSML ask):
 - Find inmate: POST `${BASE_URL}/telnyx/find_person` with `{ full_name, dob?, county? }`
 - Bail status: POST `${BASE_URL}/telnyx/get_bail_status` with `{ person_id? | full_name (+dob?), county? }`
 - Attach caller before transfer: POST `${BASE_URL}/telnyx/attach_caller` with `{ person_id? | full_name (+dob?), caller_name, caller_phone, relationship?, intends_to_post?, notes? }`
+
+- Transfer target (office routing): POST `${BASE_URL}/telnyx/transfer_target` with `{ county? }` → `{ phone }`
 
 All requests must include `Authorization: Bearer ${TELNYX_TOOL_TOKEN}`.
 
