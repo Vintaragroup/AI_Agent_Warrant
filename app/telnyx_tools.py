@@ -197,6 +197,26 @@ def _transfer_numbers_by_schedule(county: Optional[str], lang: Optional[str] = N
     except Exception:
         pass
 
+    # If still empty, apply Harris-specific gap fallback to Alex (Spanish line)
+    if not numbers:
+        try:
+            # Normalize county key used earlier
+            base_key = (county or "").strip().lower()
+            if base_key.endswith(" county"):
+                base_key = base_key[:-7]
+            if base_key == "harris":
+                r_es = sched.get("harris_es") or []
+                alex_num: Optional[str] = None
+                for rr in r_es:
+                    arr = [p for p in rr.get("numbers", []) if isinstance(p, str) and p.startswith("+")]
+                    if arr:
+                        alex_num = arr[0]
+                        break
+                if alex_num:
+                    numbers.append(alex_num)
+        except Exception:
+            pass
+
     # if still empty, fallback to single route
     if not numbers:
         one = _office_phone_for_county(county)
@@ -627,6 +647,38 @@ async def transfer_plan(payload: Dict[str, Any], request: Request):
         "ok": True,
         "numbers": numbers,
         "attempt_timeout_sec": int(settings.DIAL_ATTEMPT_TIMEOUT_SEC or 20)
+    }
+
+@router.get("/schedule_status")
+async def schedule_status(request: Request, county: Optional[str] = None, lang: Optional[str] = None):
+    """Diagnostic endpoint to verify OFFICES_SCHEDULE_JSON parsing and matching.
+    Requires Bearer token. Returns tz, time, parsed keys, and a sample plan.
+    """
+    _auth(request)
+    # Parse schedule
+    try:
+        sched = _json.loads(settings.OFFICES_SCHEDULE_JSON) if settings.OFFICES_SCHEDULE_JSON else {}
+        parse_ok = True
+    except Exception as e:
+        sched = {}
+        parse_ok = False
+    keys = list(sched.keys())
+    tzname = settings.APP_TZ or "UTC"
+    tz = zoneinfo.ZoneInfo(tzname) if zoneinfo else None
+    now = datetime.now(tz) if tz else datetime.utcnow()
+    dow = ["mon","tue","wed","thu","fri","sat","sun"][now.weekday()]
+    plan = _transfer_numbers_by_schedule(county or "Harris", lang)
+    fallback = _office_phone_for_county(county or "Harris")
+    return {
+        "parse_ok": parse_ok,
+        "tz": tzname,
+        "now_local": now.isoformat(),
+        "weekday": dow,
+        "parsed_keys": keys,
+        "has_default_list": isinstance(sched.get("default"), list),
+        "sample_input": {"county": county or "Harris", "lang": lang},
+        "sample_plan": plan,
+        "fallback_via_routes": fallback
     }
 
 # ---------- optional webhooks ----------
