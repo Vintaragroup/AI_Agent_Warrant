@@ -18,10 +18,17 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-2"
     S3_BUCKET: Optional[str] = None
 
-    # Twilio (optional now that you're using Telnyx)
+    # Twilio (optional; used if Telnyx Messaging is not configured)
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_FROM_NUMBER: Optional[str] = None
+
+    # Telnyx Messaging (preferred for notify_agent SMS)
+    # Provide either a dedicated sending number (recommended) OR a messaging profile ID.
+    # API key must be set for either mode.
+    TELNYX_API_KEY: Optional[str] = None
+    TELNYX_MESSAGING_FROM_NUMBER: Optional[str] = None
+    TELNYX_MESSAGING_PROFILE_ID: Optional[str] = None
 
     # Telnyx tool token (required for your webhooks)
     TELNYX_TOOL_TOKEN: str                  # REQUIRED

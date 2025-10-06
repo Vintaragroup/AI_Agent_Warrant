@@ -371,6 +371,201 @@ Verification:
 - Telnyx will include X-Telnyx-Secret: <secret> if configured; the app verifies it.
 - These webhook endpoints do not require the Bearer tool token.
 
+## Phone number setup checklist (attach your +1 number)
+
+When you buy/see a number in Telnyx, it will show warnings like “Required for calls” and “Required for SMS” until it’s attached. Attach it in two places:
+
+1) Connection/Application → AI Assistant (for calls)
+  - Telnyx → Numbers → find your number → pencil icon.
+  - Under Connection/Application, choose AI → select your Assistant (e.g., “ASAP Bail Bonds – Lina”).
+  - Save. This routes inbound voice calls to your Assistant.
+
+2) Messaging Profile (for SMS)
+  - In the same number edit panel, choose a Messaging profile.
+  - If you don’t have one yet: Messaging → Profiles → Create Profile → name it (e.g., “ASAP Agent”) → allow outbound SMS/MMS → Save.
+  - Assign that profile to the number and Save.
+
+3) Services check
+  - Ensure the number shows Voice and SMS/MMS enabled (the service icons will be active, not greyed out).
+  - Optional but recommended (US only): A2P 10DLC brand/campaign registration → attach to the Messaging Profile for best deliverability.
+
+4) Backend envs for outbound SMS via Telnyx
+  - Set the following in your app’s environment:
+    - `TELNYX_API_KEY=...` (must have Messaging permissions)
+    - Either `TELNYX_MESSAGING_FROM_NUMBER=+1xxx...` (the SMS‑enabled number you just attached)
+     or `TELNYX_MESSAGING_PROFILE_ID=<uuid>` (Profile → copy ID)
+  - With these set, `POST /telnyx/notify_agent` will send via Telnyx automatically.
+
+5) Quick verification
+  - Call your number: your AI Assistant should answer.
+  - Send yourself a text via the app:
+    - POST `${BASE_URL}/telnyx/notify_agent` with body `{ "to_phone": "+1YOURMOBILE" }` and Authorization header.
+    - You should receive an SMS from your Telnyx number (or from the profile’s assigned sender).
+
+Notes
+- The voice Transfer tool’s “From” DID can be the same number or a different Telnyx number; it doesn’t affect SMS. Keep your current From DID if you prefer.
+- Inbound SMS handling is optional for this project. If you later want to process replies, set a Messaging webhook on the profile and add an endpoint in your app.
+
+### FAQ: Do I need to assign a number under AI Assistant → Messaging?
+
+Not for this project’s notify_agent texts.
+
+- The AI Assistant → Messaging tab is for running your Assistant over SMS with end‑users (two‑way conversational SMS where the Assistant itself replies by text). If you aren’t planning to text with callers directly, you can leave this unassigned.
+- Our backend sends heads‑up texts via the Telnyx Messaging API using your Messaging Profile and/or From number. That only requires the number to be attached to a Messaging Profile (as described above), not to the Assistant’s Messaging tab.
+- If, in the future, you want callers to text the Assistant and get automated SMS responses, then assign a number on AI Assistant → Messaging and configure Delivery Status / inbound webhooks accordingly.
+
+## Assistant Instructions (drop-in)
+
+Paste this into your Telnyx Assistant “Instructions” field. It adds the two tweaks you asked for: caller-facing progress announcements and retry logic, plus language-aware routing via `lang`.
+
+```
+Conversation style
+- Be warm, concise, and professional. Use short sentences and natural pauses. If the caller prefers Spanish, switch to Spanish for the entire call.
+
+Core flow
+1) Intake: politely get the inmate’s name (and DOB if they know it), caller name/phone, relationship, and whether they intend to post bail.
+2) Lookups: use the provided tools to find the inmate and bail status. If bail is unclear and the text suggests “refer to magistrate” or pending, tell the caller we’ll have a bondsman advise them.
+3) Confirm transfer: “I’m going to bring an on‑call bondsman on the line now.”
+
+Language handling
+- Maintain a variable called language. If the caller speaks Spanish or asks for Spanish, set language = "es" and continue in Spanish; otherwise leave it empty.
+
+Transfer behavior (announce progress + retry)
+1) Say to the caller: “One moment while I connect you.”
+2) Call the transfer_plan tool with the county and the language variable to get an ordered list of phone numbers and attempt_timeout_sec. Do not read numbers aloud.
+   - Input JSON: { county: {{county}}, lang: {{language}} }
+3) For each number (destination_number) in order:
+   - Tell the caller: “Connecting you now.”
+   - Place the transfer to that destination number using the Transfer tool.
+   - If the call isn’t answered within attempt_timeout_sec seconds, tell the caller: “No answer, I’ll try the next number,” then try the next number.
+4) If all attempts fail: apologize and offer to take a brief message or request a call‑back number. Let the caller know we’ll reach out shortly.
+
+Important
+- Keep the caller on the line during dialing so there’s no dead air; give a brief reassurance if waiting.
+- Never expose raw JSON or read phone numbers out loud.
+- Use the “Warm Transfer Instructions” configured inside the Transfer tool to briefly tell the bondsman what the call is about (e.g., bail inquiry and that the caller intends to post). Those whispers are heard by the agent, not the caller.
+- If attempt_timeout_sec isn’t provided, assume 20 seconds.
+```
+
+Recommended assistant variables
+- `county` (string): normalized county name, e.g., "Harris"
+- `language` (string): empty or "es" when the caller prefers Spanish
+- `inmate_name`, `inmate_dob` (strings)
+- `caller_name`, `caller_phone` (strings, E.164 for phone when known)
+- `caller_relationship` (string)
+- `caller_intends_to_post` (boolean)
+
+Transfer tool configuration
+- From Number/SIP URI: `+17133256085` (Assistant DID)
+- Targets → To Number/SIP URI: `{{destination_number}}` (use a variable)
+- Warm Transfer Instructions (example):
+  - “Hi, I’m connecting a caller about a {{county}} County bail inquiry for {{inmate_name}}. They confirmed intent to post. I’m bringing you on now.”
+
+Update your transfer_plan tool body (Advanced JSON)
+```json
+{
+  "county": "{{county}}",
+  "lang": "{{language}}"
+}
+```
+Notes:
+- Passing `lang` allows the backend to prioritize Spanish routing (e.g., Alex) when `language` is "es". Harris also auto‑inserts Alex as the second attempt after the first no‑answer and uses Alex as a gap fallback when no schedule window matches.
+
+### Tool config: Input Schema vs Request Body (transfer_plan)
+
+In the Telnyx HTTP tool editor there are two different JSON areas:
+- Input Schema (optional): defines what the assistant is allowed to pass.
+- Request Body (Advanced): the actual JSON sent to your API. This should reference assistant variables like `{{county}}` and `{{language}}`.
+
+Recommended Input Schema for transfer_plan:
+```json
+{
+  "type": "object",
+  "properties": {
+    "county": {
+      "type": "string",
+      "description": "County name, e.g. 'Harris' or 'Harris County'. Case-insensitive."
+    },
+    "lang": {
+      "type": "string",
+      "enum": ["es"],
+      "description": "Language code. Use 'es' for Spanish routing only; omit for English/default."
+    }
+  },
+  "required": ["county"]
+}
+```
+
+Request Body (Advanced) for transfer_plan:
+```json
+{
+  "county": "{{county}}",
+  "lang": "{{language}}"
+}
+```
+
+Why avoid `lang: "en"`?
+- The backend treats `lang` as optional. When provided, it first checks a county‑specific key like `harris_es`. There is no `harris_en` key, so sending `"en"` just adds an unnecessary lookup before falling back to `harris`. Prefer sending `"es"` for Spanish or leaving `lang` blank/omitted for English.
+
+## Webhook Tool: notify_agent (text summary)
+
+Send a short SMS to the on‑call agent just before you dial them. The backend uses your Twilio configuration (`app/sms.py`) and logs outcomes in the `logs` collection.
+
+- Method: POST
+- URL: `${BASE_URL}/telnyx/notify_agent`
+- Headers: `Authorization: Bearer ${TELNYX_TOOL_TOKEN}`
+
+Minimal Request Body (Advanced mode):
+```json
+{
+  "to_phone": "{{destination_number}}",
+  "county": "{{county}}",
+  "summary": "Connecting caller now about {{inmate_name}}."
+}
+```
+
+Full Request Body (optional richer context):
+```json
+{
+  "to_phone": "{{destination_number}}",
+  "county": "{{county}}",
+  "inmate": {
+    "full_name": "{{inmate_name}}",
+    "dob": "{{inmate_dob}}"
+  },
+  "bail": {
+    "total_bond": "{{bail_total_bond}}",
+    "amount_numeric": "{{bail_amount_numeric}}",
+    "eligible": "{{bail_eligible}}",
+    "bond_text": "{{bail_bond_text}}",
+    "needs_human_review": "{{bail_needs_human_review}}"
+  },
+  "caller": {
+    "name": "{{caller_name}}",
+    "phone": "{{caller_phone}}",
+    "relationship": "{{caller_relationship}}",
+    "intends_to_post": "{{caller_intends_to_post}}"
+  },
+  "summary": "Caller confirmed posting intent. Bringing you on now."
+}
+```
+
+Usage notes:
+- Call this immediately before each Transfer attempt so the on‑call agent gets a heads‑up SMS.
+- `to_phone` should be the same `{{destination_number}}` you’re about to dial.
+- Only `to_phone` is required; other fields enrich the message.
+- Example SMS format produced by the backend: `New transfer (Harris): Inmate John Doe (DOB 1990-01-01) | Bail $5,000.00 | Eligible | Caller Jane +18324101662 | intends to post | Summary: Connecting caller now...`
+
+Enable SMS delivery (Twilio env vars)
+- The app sends SMS via Twilio (`app/sms.py`). Set these in your `.env` and redeploy:
+  - `TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+  - `TWILIO_AUTH_TOKEN=...`
+  - `TWILIO_FROM_NUMBER=+1XXXXXXXXXX` (E.164)
+- If these are not set, the endpoint will no‑op in dev mode (prints to logs) but won’t actually text the agent.
+
+Quick verification (optional)
+- Make a test POST to `POST ${BASE_URL}/telnyx/notify_agent` with your Bearer token and your own phone as `to_phone`. You should receive the SMS within a few seconds when Twilio creds are configured.
+
 ### POST /telnyx/attach_caller
 Attach caller info to a case CRM if a case exists for the inmate; always records an inquiry.
 
