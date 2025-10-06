@@ -16,6 +16,12 @@ def _send_telnyx_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
         "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
         "Content-Type": "application/json",
     }
+    # Add per-request idempotency key to make retries safe and avoid accidental duplicates
+    try:
+        import uuid as _uuid
+        headers["Idempotency-Key"] = _uuid.uuid4().hex
+    except Exception:
+        pass
     payload = {
         "to": to_e164,
         "text": body,
@@ -37,8 +43,15 @@ def _send_telnyx_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
             content = r.json()
         except Exception:
             content = {"raw_text": r.text}
-        # Raise for http errors, but still return rich info in exception path
-        r.raise_for_status()
+        # Raise for http errors, but include detailed response in the exception
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as he:
+            detail = {
+                "status_code": r.status_code,
+                "response": content,
+            }
+            raise RuntimeError(f"Telnyx API error: {detail}") from he
         return {"provider": "telnyx", "status_code": r.status_code, "data": content}
 
 def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
@@ -58,7 +71,14 @@ def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
             content = r.json()
         except Exception:
             content = {"raw_text": r.text}
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as he:
+            detail = {
+                "status_code": r.status_code,
+                "response": content,
+            }
+            raise RuntimeError(f"Twilio API error: {detail}") from he
         return {"provider": "twilio", "status_code": r.status_code, "data": content}
 
 def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
@@ -66,19 +86,28 @@ def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dic
     Preference order: Telnyx → Twilio → dev no-op.
     """
     # Try Telnyx first
+    telnyx_err = None
+    twilio_err = None
     if settings.TELNYX_API_KEY and (settings.TELNYX_MESSAGING_FROM_NUMBER or settings.TELNYX_MESSAGING_PROFILE_ID):
         try:
             return _send_telnyx_sms(to_e164, body, media_url=media_url)
         except Exception as e:
-            print(f"[WARN] Telnyx SMS failed: {e}")
+            telnyx_err = str(e)
+            print(f"[WARN] Telnyx SMS failed: {telnyx_err}")
 
     # Fallback to Twilio
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_FROM_NUMBER:
         try:
             return _send_twilio_sms(to_e164, body, media_url=media_url)
         except Exception as e:
-            print(f"[WARN] Twilio SMS failed: {e}")
+            twilio_err = str(e)
+            print(f"[WARN] Twilio SMS failed: {twilio_err}")
 
     # Dev no-op
     print(f"[DEV] SMS to {to_e164}: {body} (media={media_url})")
-    return {"provider": "dev-noop", "status_code": 200, "data": {"ok": True, "dev": True}}
+    return {
+        "provider": "dev-noop",
+        "status_code": 200,
+        "data": {"ok": True, "dev": True},
+        "errors": {"telnyx": telnyx_err, "twilio": twilio_err}
+    }
