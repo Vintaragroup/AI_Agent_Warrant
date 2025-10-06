@@ -26,9 +26,11 @@ def _send_telnyx_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
         "to": to_e164,
         "text": body,
     }
-    # Prefer a dedicated sending number if provided; otherwise use messaging_profile_id
+    # Prefer explicit 'from' when provided; also include messaging_profile_id if available
     if settings.TELNYX_MESSAGING_FROM_NUMBER:
         payload["from"] = settings.TELNYX_MESSAGING_FROM_NUMBER
+        if settings.TELNYX_MESSAGING_PROFILE_ID:
+            payload["messaging_profile_id"] = settings.TELNYX_MESSAGING_PROFILE_ID
     elif settings.TELNYX_MESSAGING_PROFILE_ID:
         payload["messaging_profile_id"] = settings.TELNYX_MESSAGING_PROFILE_ID
 
