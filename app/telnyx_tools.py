@@ -802,6 +802,37 @@ async def telnyx_call_events(payload: Dict[str, Any], request: Request):
     })
     return {"ok": True}
 
+# ---------- diagnostics ----------
+@router.get("/sms_status")
+async def sms_status(request: Request):
+    """Return which SMS providers are configured so we can debug notify_agent delivery.
+    Does not send any messages. Requires Bearer token.
+    """
+    _auth(request)
+    try:
+        from .config import settings as _s
+    except Exception:
+        raise HTTPException(500, "Config load error")
+
+    telnyx_ready = bool(_s.TELNYX_API_KEY and (_s.TELNYX_MESSAGING_FROM_NUMBER or _s.TELNYX_MESSAGING_PROFILE_ID))
+    twilio_ready = bool(_s.TWILIO_ACCOUNT_SID and _s.TWILIO_AUTH_TOKEN and _s.TWILIO_FROM_NUMBER)
+
+    return {
+        "ok": True,
+        "telnyx": {
+            "api_key": bool(_s.TELNYX_API_KEY),
+            "from_number": bool(_s.TELNYX_MESSAGING_FROM_NUMBER),
+            "messaging_profile_id": bool(_s.TELNYX_MESSAGING_PROFILE_ID),
+            "configured": telnyx_ready
+        },
+        "twilio": {
+            "account_sid": bool(_s.TWILIO_ACCOUNT_SID),
+            "from_number": bool(_s.TWILIO_FROM_NUMBER),
+            "configured": twilio_ready
+        },
+        "send_order": ["telnyx", "twilio", "dev-noop"]
+    }
+
 @router.post("/recording_ready")
 async def telnyx_recording_ready(payload: Dict[str, Any], request: Request):
     """Receive recording availability notifications (URL) when enabled in Telnyx.
