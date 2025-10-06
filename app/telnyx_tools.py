@@ -770,7 +770,7 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     try:
         res = send_sms(to, body)
         logs.insert_one({"type":"notify_agent_sms","to":to,"body":body,"ts":int(time.time()),"res":res})
-        return {"ok": True}
+        return {"ok": True, "provider_response": res}
     except Exception as e:
         logs.insert_one({"type":"notify_agent_sms_error","to":to,"err":str(e),"ts":int(time.time())})
         raise HTTPException(500, "Failed to send SMS")

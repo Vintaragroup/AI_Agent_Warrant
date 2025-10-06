@@ -32,8 +32,14 @@ def _send_telnyx_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
 
     with httpx.Client(timeout=10.0) as client:
         r = client.post(url, json=payload, headers=headers)
+        content = None
+        try:
+            content = r.json()
+        except Exception:
+            content = {"raw_text": r.text}
+        # Raise for http errors, but still return rich info in exception path
         r.raise_for_status()
-        return r.json()
+        return {"provider": "telnyx", "status_code": r.status_code, "data": content}
 
 def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
     """Send SMS via Twilio REST API (fallback when Telnyx is not configured)."""
@@ -47,8 +53,13 @@ def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
         data["MediaUrl"] = media_url
     with httpx.Client(timeout=10.0) as client:
         r = client.post(url, data=data, auth=auth)
+        content = None
+        try:
+            content = r.json()
+        except Exception:
+            content = {"raw_text": r.text}
         r.raise_for_status()
-        return r.json()
+        return {"provider": "twilio", "status_code": r.status_code, "data": content}
 
 def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
     """Send an SMS using the first available provider.
@@ -70,4 +81,4 @@ def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dic
 
     # Dev no-op
     print(f"[DEV] SMS to {to_e164}: {body} (media={media_url})")
-    return {"ok": True, "dev": True}
+    return {"provider": "dev-noop", "status_code": 200, "data": {"ok": True, "dev": True}}
