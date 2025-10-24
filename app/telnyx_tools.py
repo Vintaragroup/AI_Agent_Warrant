@@ -2,7 +2,7 @@
 from __future__ import annotations
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.security import HTTPBearer
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import time, re
 from bson import ObjectId
 
@@ -774,6 +774,45 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     except Exception as e:
         logs.insert_one({"type":"notify_agent_sms_error","to":to,"err":str(e),"ts":int(time.time())})
         raise HTTPException(500, "Failed to send SMS")
+
+@router.post("/notify_group")
+async def notify_group(payload: Dict[str, Any], request: Request):
+    """Send an SMS/WhatsApp summary to multiple recipients.
+    Input JSON:
+    - to_phones: array of E.164 strings (required)
+    - county, inmate, bail, caller, summary: same as /notify_agent (optional)
+    Returns: { ok: true, sent: [...], failed: [...]} with per-recipient provider responses.
+    """
+    _auth(request)
+    tos_raw = payload.get("to_phones") or []
+    if not isinstance(tos_raw, list) or not tos_raw:
+        raise HTTPException(400, "Provide non-empty 'to_phones' array of E.164 numbers")
+    to_list: List[str] = []
+    for p in tos_raw:
+        e = _e164(str(p))
+        if e:
+            to_list.append(e)
+    if not to_list:
+        raise HTTPException(400, "No valid E.164 numbers in 'to_phones'")
+
+    county = (payload.get("county") or "").strip() or None
+    inmate = payload.get("inmate") or {}
+    bail = payload.get("bail") or {}
+    caller = payload.get("caller") or {}
+    summary = (payload.get("summary") or "").strip() or None
+
+    body = _compose_agent_sms(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    sent: List[Dict[str, Any]] = []
+    failed: List[Dict[str, Any]] = []
+    for to in to_list:
+        try:
+            res = send_sms(to, body)
+            logs.insert_one({"type":"notify_group_sms","to":to,"body":body,"ts":int(time.time()),"res":res})
+            sent.append({"to": to, "provider_response": res})
+        except Exception as e:
+            logs.insert_one({"type":"notify_group_sms_error","to":to,"err":str(e),"ts":int(time.time())})
+            failed.append({"to": to, "error": str(e)})
+    return {"ok": True, "sent": sent, "failed": failed, "count": {"sent": len(sent), "failed": len(failed)}}
 
 # ---------- optional webhooks ----------
 @router.post("/ai_events")
