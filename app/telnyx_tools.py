@@ -815,7 +815,11 @@ async def sms_status(request: Request):
         raise HTTPException(500, "Config load error")
 
     telnyx_ready = bool(_s.TELNYX_API_KEY and (_s.TELNYX_MESSAGING_FROM_NUMBER or _s.TELNYX_MESSAGING_PROFILE_ID))
-    twilio_ready = bool(_s.TWILIO_ACCOUNT_SID and _s.TWILIO_AUTH_TOKEN and _s.TWILIO_FROM_NUMBER)
+    twilio_ready = bool(
+        _s.TWILIO_ACCOUNT_SID and _s.TWILIO_AUTH_TOKEN and (
+            getattr(_s, "TWILIO_MESSAGING_SERVICE_SID", None) or _s.TWILIO_FROM_NUMBER
+        )
+    )
 
     return {
         "ok": True,
@@ -828,9 +832,12 @@ async def sms_status(request: Request):
         "twilio": {
             "account_sid": bool(_s.TWILIO_ACCOUNT_SID),
             "from_number": bool(_s.TWILIO_FROM_NUMBER),
+            "messaging_service_sid": bool(getattr(_s, "TWILIO_MESSAGING_SERVICE_SID", None)),
+            "use_whatsapp": bool(getattr(_s, "TWILIO_USE_WHATSAPP", False)),
+            "whatsapp_from": bool(getattr(_s, "TWILIO_WHATSAPP_FROM", None)),
             "configured": twilio_ready
         },
-        "send_order": ["telnyx", "twilio", "dev-noop"]
+        "send_order": ["twilio", "telnyx", "dev-noop"]
     }
 
 @router.post("/recording_ready")

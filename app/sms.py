@@ -57,13 +57,21 @@ def _send_telnyx_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
         return {"provider": "telnyx", "status_code": r.status_code, "data": content}
 
 def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
-    """Send SMS via Twilio REST API (fallback when Telnyx is not configured)."""
-    if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_FROM_NUMBER):
-        raise RuntimeError("Twilio not configured")
+    """Send SMS via Twilio REST API.
+    Uses Messaging Service if TWILIO_MESSAGING_SERVICE_SID is set; otherwise uses From number.
+    """
+    if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN):
+        raise RuntimeError("Twilio not configured: missing account credentials")
+    if not (settings.TWILIO_MESSAGING_SERVICE_SID or settings.TWILIO_FROM_NUMBER):
+        raise RuntimeError("Twilio not configured: provide TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM_NUMBER")
 
     url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
     auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-    data = {"To": to_e164, "From": settings.TWILIO_FROM_NUMBER, "Body": body}
+    # Prefer Messaging Service for A2P 10DLC compliance; fallback to direct From number
+    if settings.TWILIO_MESSAGING_SERVICE_SID:
+        data = {"To": to_e164, "Body": body, "MessagingServiceSid": settings.TWILIO_MESSAGING_SERVICE_SID}
+    else:
+        data = {"To": to_e164, "From": settings.TWILIO_FROM_NUMBER, "Body": body}
     if media_url:
         data["MediaUrl"] = media_url
     with httpx.Client(timeout=10.0) as client:
@@ -83,6 +91,35 @@ def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
             raise RuntimeError(f"Twilio API error: {detail}") from he
         return {"provider": "twilio", "status_code": r.status_code, "data": content}
 
+def _send_twilio_whatsapp(to_e164: str, body: str) -> dict:
+    """Send message via Twilio WhatsApp channel.
+    Requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM configured.
+    """
+    if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN):
+        raise RuntimeError("Twilio not configured: missing account credentials")
+    if not settings.TWILIO_WHATSAPP_FROM:
+        raise RuntimeError("Twilio WhatsApp not configured: set TWILIO_WHATSAPP_FROM")
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
+    auth = (settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+    data = {
+        "To": f"whatsapp:{to_e164}",
+        "From": f"whatsapp:{settings.TWILIO_WHATSAPP_FROM}",
+        "Body": body,
+    }
+    with httpx.Client(timeout=10.0) as client:
+        r = client.post(url, data=data, auth=auth)
+        try:
+            content = r.json()
+        except Exception:
+            content = {"raw_text": r.text}
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as he:
+            detail = {"status_code": r.status_code, "response": content}
+            raise RuntimeError(f"Twilio WhatsApp API error: {detail}") from he
+        return {"provider": "twilio-whatsapp", "status_code": r.status_code, "data": content}
+
 def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
     """Send an SMS using the first available provider.
     Preference order: Twilio → Telnyx → dev no-op.
@@ -90,12 +127,21 @@ def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dic
     # Try Twilio first
     telnyx_err = None
     twilio_err = None
-    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_FROM_NUMBER:
-        try:
-            return _send_twilio_sms(to_e164, body, media_url=media_url)
-        except Exception as e:
-            twilio_err = str(e)
-            print(f"[WARN] Twilio SMS failed: {twilio_err}")
+    if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
+        # If WhatsApp is enabled, prefer that channel
+        if getattr(settings, "TWILIO_USE_WHATSAPP", False) and settings.TWILIO_WHATSAPP_FROM:
+            try:
+                return _send_twilio_whatsapp(to_e164, body)
+            except Exception as e:
+                twilio_err = str(e)
+                print(f"[WARN] Twilio WhatsApp failed: {twilio_err}")
+        # Otherwise fallback to SMS via Messaging Service or From number
+        if (getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None) or settings.TWILIO_FROM_NUMBER):
+            try:
+                return _send_twilio_sms(to_e164, body, media_url=media_url)
+            except Exception as e:
+                twilio_err = str(e)
+                print(f"[WARN] Twilio SMS failed: {twilio_err}")
 
     # Fallback to Telnyx
     if settings.TELNYX_API_KEY and (settings.TELNYX_MESSAGING_FROM_NUMBER or settings.TELNYX_MESSAGING_PROFILE_ID):

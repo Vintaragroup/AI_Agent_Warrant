@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_FROM_NUMBER: Optional[str] = None
+    # Optional: prefer sending via a Twilio Messaging Service for A2P 10DLC
+    TWILIO_MESSAGING_SERVICE_SID: Optional[str] = None
+    # Optional: enable WhatsApp sending via Twilio
+    # When enabled, messages will be sent using the WhatsApp channel instead of SMS.
+    # Requires a WhatsApp-enabled sender (sandbox or business number) in E.164 without prefix.
+    TWILIO_USE_WHATSAPP: bool = False
+    TWILIO_WHATSAPP_FROM: Optional[str] = None
 
     # Telnyx Messaging (preferred for notify_agent SMS)
     # Provide either a dedicated sending number (recommended) OR a messaging profile ID.
