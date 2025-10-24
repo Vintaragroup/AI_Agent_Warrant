@@ -46,6 +46,57 @@ def _e164(phone: str | None) -> Optional[str]:
     phone = phone.strip()
     return phone if re.fullmatch(r"\+\d{10,15}", phone) else None
 
+def _normalize_name(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return None
+    return re.sub(r"[^a-z]", "", s.lower()) or None
+
+def _agents_map() -> dict:
+    import json as _json
+    try:
+        return _json.loads(settings.ONCALL_AGENTS_JSON) if settings.ONCALL_AGENTS_JSON else {}
+    except Exception:
+        return {}
+
+def _agent_phone_from_name(name: Optional[str]) -> Optional[str]:
+    """Resolve agent phone by fuzzy name match using ONCALL_AGENTS_JSON.
+    Accepted format:
+    {
+      "Alex": {"phone": "+1713...", "aliases": ["Alejandro", "Alexander"]},
+      "Maria": {"phone": "+1832..."}
+    }
+    Matching is case-insensitive, letters-only compare; exact or startswith on name or aliases.
+    """
+    if not name:
+        return None
+    roster = _agents_map()
+    want = _normalize_name(name)
+    if not want:
+        return None
+    # Pass 1: exact normalized key match
+    for disp, info in roster.items():
+        norm = _normalize_name(disp)
+        if norm and norm == want:
+            ph = (info or {}).get("phone")
+            return _e164(ph)
+    # Pass 2: aliases exact or startswith
+    for disp, info in roster.items():
+        info = info or {}
+        # main display startswith
+        norm = _normalize_name(disp)
+        if norm and (norm == want or norm.startswith(want) or want.startswith(norm)):
+            ph = info.get("phone")
+            if _e164(ph):
+                return ph
+        # aliases
+        for al in (info.get("aliases") or []):
+            an = _normalize_name(str(al))
+            if an and (an == want or an.startswith(want) or want.startswith(an)):
+                ph = info.get("phone")
+                if _e164(ph):
+                    return ph
+    return None
+
 def _objid(s: str | None) -> Optional[ObjectId]:
     if not s:
         return None
@@ -758,8 +809,11 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     """
     _auth(request)
     to = _e164(payload.get("to_phone"))
+    agent_name = (payload.get("agent_name") or "").strip() or None
+    if not to and agent_name:
+        to = _agent_phone_from_name(agent_name)
     if not to:
-        raise HTTPException(400, "Valid E.164 'to_phone' required")
+        raise HTTPException(400, "Provide 'to_phone' (E.164) or 'agent_name' matching ONCALL_AGENTS_JSON")
     county = (payload.get("county") or "").strip() or None
     inmate = payload.get("inmate") or {}
     bail = payload.get("bail") or {}
@@ -774,6 +828,31 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     except Exception as e:
         logs.insert_one({"type":"notify_agent_sms_error","to":to,"err":str(e),"ts":int(time.time())})
         raise HTTPException(500, "Failed to send SMS")
+
+@router.get("/agents")
+async def list_agents(request: Request):
+    """List configured on-call agents (names only) and whether phones are valid.
+    Requires Bearer token.
+    """
+    _auth(request)
+    roster = _agents_map()
+    out = []
+    for name, info in roster.items():
+        ph = (info or {}).get("phone")
+        out.append({
+            "name": name,
+            "phone": ph,
+            "valid_e164": bool(_e164(ph)),
+            "aliases": (info or {}).get("aliases") or []
+        })
+    return {"ok": True, "agents": out}
+
+@router.get("/agent_phone")
+async def get_agent_phone(name: str, request: Request):
+    """Resolve a single agent phone by name for diagnostics."""
+    _auth(request)
+    ph = _agent_phone_from_name(name)
+    return {"ok": bool(ph), "name": name, "phone": ph}
 
 @router.post("/notify_group")
 async def notify_group(payload: Dict[str, Any], request: Request):

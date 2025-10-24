@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # Optional shared secret for Telnyx webhooks (X-Telnyx-Secret header)
     TELNYX_WEBHOOK_SECRET: Optional[str] = None
 
+    # On-call roster (optional)
+    # JSON mapping of agent display names to phone and optional aliases, e.g.:
+    # {
+    #   "Alex": {"phone": "+17135550111", "aliases": ["Alejandro", "Alexander"]},
+    #   "Maria": {"phone": "+17135550112"}
+    # }
+    ONCALL_AGENTS_JSON: Optional[str] = None
+
     # Optional: County → office phone routing
     # Provide JSON like: {"harris":"+18324101662","brazoria":"+18325550123"}
     OFFICE_ROUTES_JSON: Optional[str] = None
