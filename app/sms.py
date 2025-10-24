@@ -85,25 +85,25 @@ def _send_twilio_sms(to_e164: str, body: str, *, media_url: Optional[str] = None
 
 def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
     """Send an SMS using the first available provider.
-    Preference order: Telnyx → Twilio → dev no-op.
+    Preference order: Twilio → Telnyx → dev no-op.
     """
-    # Try Telnyx first
+    # Try Twilio first
     telnyx_err = None
     twilio_err = None
-    if settings.TELNYX_API_KEY and (settings.TELNYX_MESSAGING_FROM_NUMBER or settings.TELNYX_MESSAGING_PROFILE_ID):
-        try:
-            return _send_telnyx_sms(to_e164, body, media_url=media_url)
-        except Exception as e:
-            telnyx_err = str(e)
-            print(f"[WARN] Telnyx SMS failed: {telnyx_err}")
-
-    # Fallback to Twilio
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and settings.TWILIO_FROM_NUMBER:
         try:
             return _send_twilio_sms(to_e164, body, media_url=media_url)
         except Exception as e:
             twilio_err = str(e)
             print(f"[WARN] Twilio SMS failed: {twilio_err}")
+
+    # Fallback to Telnyx
+    if settings.TELNYX_API_KEY and (settings.TELNYX_MESSAGING_FROM_NUMBER or settings.TELNYX_MESSAGING_PROFILE_ID):
+        try:
+            return _send_telnyx_sms(to_e164, body, media_url=media_url)
+        except Exception as e:
+            telnyx_err = str(e)
+            print(f"[WARN] Telnyx SMS failed: {telnyx_err}")
 
     # Dev no-op
     print(f"[DEV] SMS to {to_e164}: {body} (media={media_url})")
