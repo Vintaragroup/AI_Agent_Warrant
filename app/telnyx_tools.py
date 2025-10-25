@@ -152,7 +152,9 @@ def _compose_agent_sms(
     inmate: Optional[dict],
     bail: Optional[dict],
     caller: Optional[dict],
-    summary: Optional[str]
+    summary: Optional[str],
+    urgency: Optional[object] = None,
+    topic: Optional[str] = None
 ) -> str:
     """Build a concise SMS (<= 320 chars) for the on-call agent.
     inmate: { full_name?, dob? }
@@ -202,6 +204,19 @@ def _compose_agent_sms(
         if intends is True:
             parts.append("intends to post")
 
+    # Extras captured from final question
+    if topic:
+        parts.append(f"Topic: {topic}")
+    if urgency is not None:
+        try:
+            ustr = str(urgency).strip().lower()
+            if ustr in ("true","yes","y","urgent","high","asap","1") or urgency is True:
+                parts.append("URGENT")
+            elif ustr and ustr not in ("false","no","n","0","none","null"):
+                parts.append(f"Urgency: {ustr}")
+        except Exception:
+            pass
+
     if summary:
         parts.append(f"Summary: {summary}")
 
@@ -214,7 +229,9 @@ def _compose_whisper_text(
     inmate: Optional[dict],
     bail: Optional[dict],
     caller: Optional[dict],
-    summary: Optional[str]
+    summary: Optional[str],
+    urgency: Optional[object] = None,
+    topic: Optional[str] = None
 ) -> str:
     """Compose a short, TTS-friendly whisper for the on-call agent.
     Target length ~10–20 seconds of speech.
@@ -256,6 +273,18 @@ def _compose_whisper_text(
             segs.append(f"Caller {cname}.")
         if intends is True:
             segs.append("They intend to post today.")
+
+    if topic:
+        segs.append(f"Topic: {topic}.")
+    if urgency is not None:
+        try:
+            ustr = str(urgency).strip().lower()
+            if ustr in ("true","yes","urgent","high","asap","1") or urgency is True:
+                segs.append("Caller marked this as urgent.")
+            elif ustr and ustr not in ("false","no","0","none","null"):
+                segs.append(f"Urgency {ustr}.")
+        except Exception:
+            pass
 
     if summary:
         segs.append(summary)
@@ -844,10 +873,14 @@ async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
     bail = payload.get("bail") or {}
     caller = payload.get("caller") or {}
     summary = (payload.get("summary") or "").strip() or None
+    topic = (payload.get("topic") or payload.get("subject") or "").strip() or None
+    urgency = payload.get("urgency")
 
     numbers = _transfer_numbers_by_schedule(county, lang)
     # Build whisper text for the agent side
-    whisper = _compose_whisper_text(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    whisper = _compose_whisper_text(
+        county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
+    )
     # Resolve hold music URL and defaults
     hold_url = getattr(settings, "HOLD_MUSIC_URL", None)
     attempt_timeout = int(getattr(settings, "DIAL_ATTEMPT_TIMEOUT_SEC", 20) or 20)
@@ -935,8 +968,12 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     bail = payload.get("bail") or {}
     caller = payload.get("caller") or {}
     summary = (payload.get("summary") or "").strip() or None
+    topic = (payload.get("topic") or payload.get("subject") or "").strip() or None
+    urgency = payload.get("urgency")
 
-    body = _compose_agent_sms(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    body = _compose_agent_sms(
+        county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
+    )
     try:
         res = send_sms(to, body)
         logs.insert_one({"type":"notify_agent_sms","to":to,"body":body,"ts":int(time.time()),"res":res})
@@ -995,8 +1032,12 @@ async def notify_group(payload: Dict[str, Any], request: Request):
     bail = payload.get("bail") or {}
     caller = payload.get("caller") or {}
     summary = (payload.get("summary") or "").strip() or None
+    topic = (payload.get("topic") or payload.get("subject") or "").strip() or None
+    urgency = payload.get("urgency")
 
-    body = _compose_agent_sms(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    body = _compose_agent_sms(
+        county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
+    )
     sent: List[Dict[str, Any]] = []
     failed: List[Dict[str, Any]] = []
     for to in to_list:
