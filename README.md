@@ -43,6 +43,13 @@ This is a ready-to-run FastAPI app that supports:
    curl -X POST http://127.0.0.1:8080/admin/send_link/CASE123
    ```
 
+## Health and root endpoints
+
+- Root: `GET /` returns `{ ok: true, service, health, docs }` for platform health checks.
+- Health: `GET /healthz` reports build info and mounted Telnyx routes.
+
+On Render, the default health probe hits `/` with `HEAD`/`GET`. This repo now serves 200 OK at `/` to avoid noisy 404s in logs. You can also point Render’s Health Check Path to `/healthz` if you prefer.
+
 ## Telnyx Tools
 
 Endpoints under `/telnyx/*` allow Telnyx AI Assistant to:

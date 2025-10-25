@@ -15,6 +15,18 @@ from .telnyx_tools import router as telnyx_router
 # ---- App & mounts ----
 app = FastAPI()
 
+@app.get("/")
+async def root():
+    """Friendly root endpoint so platform health checks don't 404.
+    Links to /healthz and /docs.
+    """
+    return {
+        "ok": True,
+        "service": "AI Agent Warrant",
+        "health": "/healthz",
+        "docs": "/docs"
+    }
+
 @app.get("/healthz")
 async def healthz():
     # Introspect mounted routes for visibility
