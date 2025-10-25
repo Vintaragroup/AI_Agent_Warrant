@@ -208,6 +208,63 @@ def _compose_agent_sms(
     msg = " | ".join([p for p in parts if p])
     return (msg[:317] + "...") if len(msg) > 320 else msg
 
+def _compose_whisper_text(
+    *,
+    county: Optional[str],
+    inmate: Optional[dict],
+    bail: Optional[dict],
+    caller: Optional[dict],
+    summary: Optional[str]
+) -> str:
+    """Compose a short, TTS-friendly whisper for the on-call agent.
+    Target length ~10–20 seconds of speech.
+    """
+    segs: list[str] = []
+    if county:
+        segs.append(f"New lead for {county.title()} county.")
+    else:
+        segs.append("New lead.")
+
+    if inmate:
+        nm = inmate.get("full_name") or inmate.get("name")
+        if nm:
+            segs.append(f"Inmate {nm}.")
+        dob = inmate.get("dob")
+        if dob:
+            segs.append(f"Date of birth {dob}.")
+
+    if bail:
+        tb = bail.get("total_bond") or bail.get("bond_text")
+        elig = bail.get("eligible")
+        need = bail.get("needs_human_review")
+        if tb:
+            segs.append(f"Bail {tb}.")
+        if elig is True:
+            segs.append("Eligible to post.")
+        elif elig is False:
+            segs.append("Not eligible to post.")
+        elif need:
+            segs.append("Needs human review.")
+
+    if caller:
+        cname = caller.get("name")
+        rel = caller.get("relationship")
+        intends = caller.get("intends_to_post")
+        if cname and rel:
+            segs.append(f"Caller {cname}, {rel}.")
+        elif cname:
+            segs.append(f"Caller {cname}.")
+        if intends is True:
+            segs.append("They intend to post today.")
+
+    if summary:
+        segs.append(summary)
+
+    segs.append(
+        f"Press {settings.TRANSFER_ACCEPT_DIGIT} to accept or {settings.TRANSFER_DECLINE_DIGIT} to decline."
+    )
+    return " ".join(segs)
+
 # ---------- office routing ----------
 import json as _json
 from datetime import datetime, time as dtime
@@ -761,6 +818,65 @@ async def transfer_plan(payload: Dict[str, Any], request: Request):
         "ok": True,
         "numbers": numbers,
         "attempt_timeout_sec": int(settings.DIAL_ATTEMPT_TIMEOUT_SEC or 20)
+    }
+
+@router.post("/warm_transfer_plan")
+async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
+    """Return a plan for a warm transfer: numbers to try, hold music URL, and a TTS whisper.
+    Input JSON: { county?, lang?, inmate?, bail?, caller?, summary? }
+    Response JSON:
+    {
+      ok: true,
+      numbers: ["+1..."],
+      attempt_timeout_sec: number,
+      hold_music_url: string|null,
+      whisper_text: string,
+      accept_dtmf: string,
+      decline_dtmf: string,
+      from_caller_id: string|null,
+      caller_hold_message: string
+    }
+    """
+    _auth(request)
+    county = (payload.get("county") or "").strip() or None
+    lang = (payload.get("lang") or "").strip() or None
+    inmate = payload.get("inmate") or {}
+    bail = payload.get("bail") or {}
+    caller = payload.get("caller") or {}
+    summary = (payload.get("summary") or "").strip() or None
+
+    numbers = _transfer_numbers_by_schedule(county, lang)
+    # Build whisper text for the agent side
+    whisper = _compose_whisper_text(county=county, inmate=inmate, bail=bail, caller=caller, summary=summary)
+    # Resolve hold music URL and defaults
+    hold_url = getattr(settings, "HOLD_MUSIC_URL", None)
+    attempt_timeout = int(getattr(settings, "DIAL_ATTEMPT_TIMEOUT_SEC", 20) or 20)
+    accept = getattr(settings, "TRANSFER_ACCEPT_DIGIT", "1")
+    decline = getattr(settings, "TRANSFER_DECLINE_DIGIT", "2")
+    from_caller_id = getattr(settings, "OFFICE_CALLER_ID", None) or getattr(settings, "DEFAULT_OFFICE_NUMBER", None)
+
+    # Friendly message for the caller while on hold
+    caller_hold_msg = "Please hold while I connect you with an agent."
+
+    return {
+        "ok": True,
+        "numbers": numbers,
+        "attempt_timeout_sec": attempt_timeout,
+        "hold_music_url": hold_url,
+        "whisper_text": whisper,
+        "accept_dtmf": accept,
+        "decline_dtmf": decline,
+        "from_caller_id": from_caller_id,
+        "caller_hold_message": caller_hold_msg
+    }
+
+@router.get("/hold_music")
+async def hold_music(request: Request):
+    """Expose the configured hold music URL for diagnostics and assistant wiring."""
+    _auth(request)
+    return {
+        "ok": True,
+        "hold_music_url": getattr(settings, "HOLD_MUSIC_URL", None)
     }
 
 @router.get("/schedule_status")

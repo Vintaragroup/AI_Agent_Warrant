@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     # Optional: Fallback transfer number if county not mapped
     DEFAULT_OFFICE_NUMBER: Optional[str] = None
 
+    # Optional: Outbound caller ID for transfer/warm-transfer calls
+    # If not set, providers may use DEFAULT_OFFICE_NUMBER when placing outbound calls.
+    OFFICE_CALLER_ID: Optional[str] = None
+
     # Optional: Time-aware office schedules per county
     # JSON format example:
     # {
@@ -73,6 +77,14 @@ class Settings(BaseSettings):
     APP_TZ: str = "America/Chicago"
     # Suggested per-number attempt timeout (seconds) for the agent UI
     DIAL_ATTEMPT_TIMEOUT_SEC: int = 20
+
+    # Optional: Hold music URL (MP3/PCM/Opus). Served to callers during warm transfer.
+    # Provide a publicly accessible HTTPS URL, e.g., from S3 or /static/hold/music.mp3
+    HOLD_MUSIC_URL: Optional[str] = None
+
+    # Optional: DTMF digits used by agents to accept/decline the warm transfer
+    TRANSFER_ACCEPT_DIGIT: str = "1"
+    TRANSFER_DECLINE_DIGIT: str = "2"
 
     # IP geolocation (optional)
     IP_GEO_PROVIDER: Literal["ipinfo", "ipapi", "none"] = "none"
