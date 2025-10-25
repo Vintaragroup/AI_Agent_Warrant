@@ -27,6 +27,11 @@ async def root():
         "docs": "/docs"
     }
 
+@app.head("/")
+async def root_head():
+    """Explicit HEAD for Render health probe. Returns 200 with no body."""
+    return Response(status_code=200)
+
 @app.get("/healthz")
 async def healthz():
     # Introspect mounted routes for visibility
