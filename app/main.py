@@ -90,6 +90,155 @@ async def serve_hold_music_proxy():
         })
         raise HTTPException(500, f"Failed to serve hold music: {err_msg}")
 
+# ---- WEBHOOK ENDPOINTS FOR AI ASSISTANT PLAYBACK CONTROL ----
+# These endpoints are called by the Telnyx AI Assistant via the webhook tool
+# to start/stop hold music on active calls
+
+@app.post("/ai/playback_start")
+async def ai_playback_start(request: Request):
+    """
+    Webhook endpoint for AI Assistant to start playback.
+    
+    Called by Telnyx AI Assistant when it needs to play hold music.
+    This endpoint calls the Telnyx Call Control API to actually start playback.
+    
+    Expected payload (from AI Assistant webhook):
+    {
+        "call_control_id": "v0UID...",
+        "audio_url": "https://...",
+        "loop": true
+    }
+    """
+    try:
+        body = await request.json()
+        call_control_id = body.get("call_control_id")
+        audio_url = body.get("audio_url") or os.getenv("HOLD_MUSIC_URL")
+        loop = body.get("loop", True)
+        
+        if not call_control_id or not audio_url:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Missing call_control_id or audio_url"}
+            )
+        
+        # Call Telnyx Call Control API to start playback
+        api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_start"
+        headers = {
+            "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "audio_url": audio_url,
+            "loop": loop
+        }
+        
+        res = requests.post(api_url, json=payload, headers=headers, timeout=10)
+        res.raise_for_status()
+        
+        logs.insert_one({
+            "type": "ai_playback_start",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "audio_url": audio_url,
+            "status": res.status_code
+        })
+        
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "status": "playback_started"}
+        )
+    
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "ai_playback_start_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Playback start failed: {err_msg}"}
+        )
+    except Exception as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "ai_playback_start_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": err_msg}
+        )
+
+@app.post("/ai/playback_stop")
+async def ai_playback_stop(request: Request):
+    """
+    Webhook endpoint for AI Assistant to stop playback.
+    
+    Called by Telnyx AI Assistant when hold music should stop.
+    This endpoint calls the Telnyx Call Control API to stop playback.
+    
+    Expected payload (from AI Assistant webhook):
+    {
+        "call_control_id": "v0UID..."
+    }
+    """
+    try:
+        body = await request.json()
+        call_control_id = body.get("call_control_id")
+        
+        if not call_control_id:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Missing call_control_id"}
+            )
+        
+        # Call Telnyx Call Control API to stop playback
+        api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_stop"
+        headers = {
+            "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        res = requests.post(api_url, json={}, headers=headers, timeout=10)
+        res.raise_for_status()
+        
+        logs.insert_one({
+            "type": "ai_playback_stop",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "status": res.status_code
+        })
+        
+        return JSONResponse(
+            status_code=200,
+            content={"ok": True, "status": "playback_stopped"}
+        )
+    
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "ai_playback_stop_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Playback stop failed: {err_msg}"}
+        )
+    except Exception as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "ai_playback_stop_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": err_msg}
+        )
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 tpl = Jinja2Templates(directory="app/templates")
 
