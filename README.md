@@ -60,3 +60,26 @@ Endpoints under `/telnyx/*` allow Telnyx AI Assistant to:
 
 Set `TELNYX_TOOL_TOKEN` in your `.env` and pass it as a `Bearer` token from Telnyx tools.
 See `app/telnyx_tools.py` for payloads and responses. For a full walkthrough, read `docs/Telnyx_Integration.md`. For the call flow and prompts used by the AI voice agent, see `docs/AI_Agent_Voice_Script.md`.
+
+## Warm transfer and hold music
+
+The warm transfer plan endpoint returns an ordered list of numbers to dial and optional hold music and whisper text for the agent side:
+
+- `POST /telnyx/warm_transfer_plan`
+- Response includes: `numbers`, `attempt_timeout_sec`, `whisper_text`, `accept_dtmf`, `decline_dtmf`, `from_caller_id`, and `hold_music_url` if configured.
+
+Hold music setup:
+- Place an MP3 in `app/static/hold/` and make it public via the app’s static mount at `/static/hold/<filename>`.
+- Set the environment variable `HOLD_MUSIC_URL` to the absolute URL of that file.
+
+Example (Render env):
+
+   HOLD_MUSIC_URL=https://ai-agent-warrant.onrender.com/static/hold/moonlightdrive.mp3
+
+Verification steps:
+- Check config: `GET /telnyx/hold_music` (must include your Bearer token) — should return the URL you set.
+- Check file headers: HEAD the file URL and confirm `200 OK` and `Content-Type: audio/mpeg`.
+
+Notes:
+- Prefer small loopable audio (10–30s, 64–128 kbps mono MP3).
+- Avoid Google Drive links; use this app’s `/static` path or a direct object storage/CDN URL (S3/GCS) with correct MIME type and no auth.
