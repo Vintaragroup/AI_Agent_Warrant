@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request, UploadFile, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import time, json, os
+import time, json, os, requests
 
 from .config import settings
 from .db import cases, checkins, links, logs
@@ -44,6 +44,51 @@ async def healthz():
         "has_attach_caller": "/telnyx/attach_caller" in paths,
         "has_ai_events": "/telnyx/ai_events" in paths
     }
+
+@app.get("/hold_music/moonlightdrive.mp3")
+async def serve_hold_music_proxy():
+    """
+    Public proxy endpoint that serves hold music from Telnyx private storage.
+    
+    This endpoint allows Telnyx playback_start API to access the audio file without
+    needing pre-signed URLs or authentication. The audio is fetched from Telnyx private storage
+    (accessible from Render's infrastructure) and streamed publicly.
+    
+    Returns: audio/mpeg stream (no authentication required for this endpoint)
+    """
+    # Direct Telnyx Object Storage URL (private, but accessible from Render server)
+    telnyx_storage_url = "https://us-central-1.telnyxcloudstorage.com/hold-music/moonlightdrive.mp3"
+    
+    try:
+        res = requests.get(telnyx_storage_url, timeout=30)
+        res.raise_for_status()
+        
+        # Log the access
+        logs.insert_one({
+            "type": "telnyx_hold_music_served",
+            "ts": int(time.time()),
+            "source_url": telnyx_storage_url,
+            "content_length": len(res.content),
+            "content_type": res.headers.get("content-type")
+        })
+        
+        # Stream the audio to the client (Telnyx API)
+        return StreamingResponse(
+            iter([res.content]),
+            media_type="audio/mpeg",
+            headers={
+                "Content-Length": str(len(res.content)),
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "telnyx_hold_music_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        raise HTTPException(500, f"Failed to serve hold music: {err_msg}")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 tpl = Jinja2Templates(directory="app/templates")
