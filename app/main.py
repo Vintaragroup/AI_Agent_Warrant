@@ -46,45 +46,60 @@ async def healthz():
     }
 
 @app.get("/hold_music/moonlightdrive.mp3")
-async def serve_hold_music_proxy():
+async def serve_hold_music():
     """
-    Public proxy endpoint that serves hold music from Telnyx private storage.
+    Serve hold music from local static file.
     
-    This endpoint allows Telnyx playback_start API to access the audio file without
-    needing pre-signed URLs or authentication. The audio is fetched from Telnyx private storage
-    (accessible from Render's infrastructure) and streamed publicly.
+    This endpoint streams hold music to Telnyx playback_start API.
+    The audio file is stored locally in app/static/hold/moonlightdrive.mp3.
     
     Returns: audio/mpeg stream (no authentication required for this endpoint)
     """
-    # Direct Telnyx Object Storage URL (private, but accessible from Render server)
-    telnyx_storage_url = "https://us-central-1.telnyxcloudstorage.com/hold-music/moonlightdrive.mp3"
+    file_path = "app/static/hold/moonlightdrive.mp3"
     
     try:
-        res = requests.get(telnyx_storage_url, timeout=30)
-        res.raise_for_status()
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Hold music file not found: {file_path}")
+        
+        file_size = os.path.getsize(file_path)
         
         # Log the access
         logs.insert_one({
-            "type": "telnyx_hold_music_served",
+            "type": "hold_music_served",
             "ts": int(time.time()),
-            "source_url": telnyx_storage_url,
-            "content_length": len(res.content),
-            "content_type": res.headers.get("content-type")
+            "file_path": file_path,
+            "file_size": file_size
         })
         
-        # Stream the audio to the client (Telnyx API)
+        # Stream the audio file
+        def iterate_file():
+            with open(file_path, "rb") as f:
+                while True:
+                    chunk = f.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+        
         return StreamingResponse(
-            iter([res.content]),
+            iterate_file(),
             media_type="audio/mpeg",
             headers={
-                "Content-Length": str(len(res.content)),
-                "Cache-Control": "public, max-age=3600"
+                "Content-Length": str(file_size),
+                "Cache-Control": "public, max-age=86400"
             }
         )
-    except requests.exceptions.RequestException as e:
+    except FileNotFoundError as e:
         err_msg = str(e)
         logs.insert_one({
-            "type": "telnyx_hold_music_error",
+            "type": "hold_music_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        raise HTTPException(404, err_msg)
+    except Exception as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "hold_music_error",
             "ts": int(time.time()),
             "error": err_msg
         })
