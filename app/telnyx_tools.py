@@ -1128,6 +1128,111 @@ async def telnyx_recording_ready(payload: Dict[str, Any], request: Request):
     })
     return {"ok": True}
 
+@router.post("/playback_start")
+async def playback_start(payload: Dict[str, Any], request: Request):
+    """Start playing audio (hold music) on a call via Telnyx Call Control API.
+    Input JSON:
+    - call_control_id (required): The call's control_id
+    - audio_url (required): URL to the audio file (MP3, WAV, etc.)
+    - loop (optional, default True): Whether to loop the audio
+    Returns: { ok: true, call_control_id, status }
+    """
+    _auth(request)
+    
+    call_control_id = (payload.get("call_control_id") or "").strip()
+    audio_url = (payload.get("audio_url") or "").strip()
+    loop = payload.get("loop", True)
+    
+    if not call_control_id or not audio_url:
+        raise HTTPException(400, "Provide 'call_control_id' and 'audio_url'")
+    
+    import requests
+    headers = {
+        "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    body = {
+        "audio_url": audio_url,
+        "loop": bool(loop)
+    }
+    
+    try:
+        api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_start"
+        res = requests.post(api_url, json=body, headers=headers, timeout=10)
+        res.raise_for_status()
+        data = res.json()
+        
+        logs.insert_one({
+            "type": "telnyx_playback_start",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "audio_url": audio_url,
+            "status": data.get("result", {}).get("status", "unknown")
+        })
+        
+        return {
+            "ok": True,
+            "call_control_id": call_control_id,
+            "status": data.get("result", {}).get("status", "unknown")
+        }
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "telnyx_playback_start_error",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "error": err_msg
+        })
+        raise HTTPException(500, f"Playback start failed: {err_msg}")
+
+@router.post("/playback_stop")
+async def playback_stop(payload: Dict[str, Any], request: Request):
+    """Stop playing audio on a call via Telnyx Call Control API.
+    Input JSON:
+    - call_control_id (required): The call's control_id
+    Returns: { ok: true, call_control_id, status }
+    """
+    _auth(request)
+    
+    call_control_id = (payload.get("call_control_id") or "").strip()
+    
+    if not call_control_id:
+        raise HTTPException(400, "Provide 'call_control_id'")
+    
+    import requests
+    headers = {
+        "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_stop"
+        res = requests.post(api_url, json={}, headers=headers, timeout=10)
+        res.raise_for_status()
+        data = res.json()
+        
+        logs.insert_one({
+            "type": "telnyx_playback_stop",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "status": data.get("result", {}).get("status", "unknown")
+        })
+        
+        return {
+            "ok": True,
+            "call_control_id": call_control_id,
+            "status": data.get("result", {}).get("status", "unknown")
+        }
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "telnyx_playback_stop_error",
+            "ts": int(time.time()),
+            "call_control_id": call_control_id,
+            "error": err_msg
+        })
+        raise HTTPException(500, f"Playback stop failed: {err_msg}")
+
 @router.get("/debug_recent")
 async def telnyx_debug_recent(request: Request, types: Optional[str] = None, limit: int = 50):
     """Return recent Telnyx-related log entries for debugging transfers.
