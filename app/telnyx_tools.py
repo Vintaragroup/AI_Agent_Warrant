@@ -1127,3 +1127,50 @@ async def telnyx_recording_ready(payload: Dict[str, Any], request: Request):
         "payload": payload
     })
     return {"ok": True}
+
+@router.get("/debug_recent")
+async def telnyx_debug_recent(request: Request, types: Optional[str] = None, limit: int = 50):
+    """Return recent Telnyx-related log entries for debugging transfers.
+    Requires Bearer token. Query params:
+      - types: comma-separated filters (e.g., "telnyx_ai_events,telnyx_call_events,notify_agent_sms*")
+      - limit: number of records to return (default 50, max 200)
+
+    This surfaces lightweight fields only to avoid large payloads.
+    """
+    _auth(request)
+    try:
+        q = {}
+        if types:
+            pats = [t.strip() for t in types.split(",") if t.strip()]
+            if pats:
+                # Build $or with regex for simple glob-like matching when trailing * is used
+                ors = []
+                for p in pats:
+                    if p.endswith("*"):
+                        ors.append({"type": {"$regex": f"^{p[:-1]}"}})
+                    else:
+                        ors.append({"type": p})
+                q = {"$or": ors}
+        lim = max(1, min(int(limit or 50), 200))
+        cur = logs.find(q or {"type": {"$regex": "^telnyx_"}}).sort([("ts", -1)]).limit(lim)
+        out = []
+        for d in cur:
+            # Trim very large payloads to avoid huge responses
+            payload = d.get("payload")
+            if isinstance(payload, dict):
+                # Keep only top-level small keys
+                small = {k: v for k, v in payload.items() if k in ("event", "status", "call_id", "session_id", "to", "from", "reason", "tool_name")}
+            else:
+                small = None
+            out.append({
+                "ts": d.get("ts"),
+                "type": d.get("type"),
+                "to": d.get("to"),
+                "from": d.get("from"),
+                "notes": d.get("notes"),
+                "err": d.get("err"),
+                "hint": small
+            })
+        return {"ok": True, "count": len(out), "items": out}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"debug_recent error: {e}")
