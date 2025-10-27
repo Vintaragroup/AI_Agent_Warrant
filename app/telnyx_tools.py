@@ -1,6 +1,7 @@
 # app/telnyx_tools.py
 from __future__ import annotations
 from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from typing import Any, Dict, Optional, List
 import time, re
@@ -947,6 +948,57 @@ async def hold_music_test(request: Request):
             "content_type": None,
             "error": str(e)
         }
+
+@router.get("/hold_music/moonlightdrive.mp3")
+async def serve_hold_music_proxy():
+    """
+    Public proxy endpoint that serves hold music from Telnyx private storage.
+    
+    This endpoint allows Telnyx playback_start API to access the audio file without
+    needing pre-signed URLs. The audio is fetched from Telnyx private storage
+    (accessible from Render's infrastructure) and streamed publicly.
+    
+    Usage: Set HOLD_MUSIC_URL=https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3
+    Then Telnyx playback_start API can access it.
+    
+    Returns: audio/mpeg stream (no authentication required for this endpoint)
+    """
+    import requests
+    
+    # Direct Telnyx Object Storage URL (private, but accessible from Render)
+    telnyx_storage_url = "https://us-central-1.telnyxcloudstorage.com/hold-music/moonlightdrive.mp3"
+    
+    try:
+        res = requests.get(telnyx_storage_url, timeout=30)
+        res.raise_for_status()
+        
+        # Log the access
+        logs.insert_one({
+            "type": "telnyx_hold_music_served",
+            "ts": int(time.time()),
+            "source_url": telnyx_storage_url,
+            "content_length": len(res.content),
+            "content_type": res.headers.get("content-type")
+        })
+        
+        # Stream the audio to the client (Telnyx API)
+        return StreamingResponse(
+            iter([res.content]),
+            media_type="audio/mpeg",
+            headers={
+                "Content-Length": str(len(res.content)),
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+    except requests.exceptions.RequestException as e:
+        err_msg = str(e)
+        logs.insert_one({
+            "type": "telnyx_hold_music_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        raise HTTPException(500, f"Failed to serve hold music: {err_msg}")
+
 
 
 @router.get("/schedule_status")
