@@ -912,6 +912,43 @@ async def hold_music(request: Request):
         "hold_music_url": getattr(settings, "HOLD_MUSIC_URL", None)
     }
 
+@router.get("/hold_music_test")
+async def hold_music_test(request: Request):
+    """Test if the configured hold music URL is accessible (200 OK, audio/mpeg content-type).
+    Requires Bearer token. Returns diagnostic info about URL reachability.
+    """
+    _auth(request)
+    
+    url = getattr(settings, "HOLD_MUSIC_URL", None)
+    if not url:
+        return {
+            "ok": False,
+            "url": None,
+            "error": "HOLD_MUSIC_URL not configured in environment",
+            "status_code": None,
+            "content_type": None
+        }
+    
+    import requests
+    try:
+        res = requests.head(url, timeout=5, allow_redirects=True)
+        return {
+            "ok": res.status_code == 200,
+            "url": url,
+            "status_code": res.status_code,
+            "content_type": res.headers.get("content-type"),
+            "error": None if res.status_code == 200 else f"HTTP {res.status_code}"
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "ok": False,
+            "url": url,
+            "status_code": None,
+            "content_type": None,
+            "error": str(e)
+        }
+
+
 @router.get("/schedule_status")
 async def schedule_status(request: Request, county: Optional[str] = None, lang: Optional[str] = None):
     """Diagnostic endpoint to verify OFFICES_SCHEDULE_JSON parsing and matching.
