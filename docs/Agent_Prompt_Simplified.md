@@ -95,8 +95,9 @@ This tool returns:
 
 **STEP 2: Tell caller you're transferring and START hold music**
 Say: "One moment while I connect you with a representative. Please hold."
-Then IMMEDIATELY call playback_start tool with:
-- audio_url: [use hold_music_url from warm_transfer_plan response]
+Then IMMEDIATELY call the playback_start webhook tool with:
+- call_control_id: (automatically available from current call context)
+- audio_url: https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3
 - loop: true
 
 **STEP 3: Use Voice Transfer action**
@@ -109,7 +110,8 @@ Then IMMEDIATELY call playback_start tool with:
 - Caller hold message: "Please hold while I connect you with an agent."
 
 **STEP 4: When transfer completes or agent answers**
-Call playback_stop tool to stop hold music before agent comes on line.
+Call the playback_stop webhook tool to stop hold music before agent comes on line with:
+- call_control_id: (automatically available from current call context)
 
 **STEP 5: If transfer fails**
 Tell the caller: "No answer. Let me try another line for you."
@@ -149,18 +151,24 @@ The playback_start and playback_stop tools are webhook-based. In the Telnyx AI A
 - Output: { ok, numbers, attempt_timeout_sec, hold_music_url, whisper_text, accept_dtmf, decline_dtmf, from_caller_id, caller_hold_message }
 
 **Tool: playback_start** ← REQUIRED FOR HOLD MUSIC
-- Webhook URL: https://ai-agent-warrant.onrender.com/ai/playback_start
-- Input: { "call_control_id": "{{call_control_id}}", "audio_url": "https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3", "loop": true }
-- Output: { ok, status }
-- Purpose: Start playing hold music on the call immediately after telling caller to hold
-- IMPORTANT: Call this webhook immediately after saying "Please hold"
+- Webhook Tool (field-based parameters)
+- URL: https://ai-agent-warrant.onrender.com/ai/playback_start
+- Method: POST
+- Parameters:
+  - call_control_id (string, required): Automatically injected from current call
+  - audio_url (string, required): https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3
+  - loop (boolean, optional): true
+- Purpose: Start playing hold music during transfer
+- IMPORTANT: Call immediately after saying "Please hold"
 
 **Tool: playback_stop** ← REQUIRED TO STOP HOLD MUSIC
-- Webhook URL: https://ai-agent-warrant.onrender.com/ai/playback_stop
-- Input: { "call_control_id": "{{call_control_id}}" }
-- Output: { ok, status }
+- Webhook Tool (field-based parameters)
+- URL: https://ai-agent-warrant.onrender.com/ai/playback_stop
+- Method: POST
+- Parameters:
+  - call_control_id (string, required): Automatically injected from current call
 - Purpose: Stop hold music when agent answers or transfer fails
-- IMPORTANT: Call this webhook before agent comes on line so they hear the caller, not music
+- IMPORTANT: Call before agent comes on line so they hear the caller, not music
 
 ---
 ## Natural Speech Tips
