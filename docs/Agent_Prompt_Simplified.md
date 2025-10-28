@@ -126,6 +126,12 @@ If they say "representative," "human," "operator," etc.:
 ---
 ## Tool Definitions (Agent Prompt Reference)
 
+### WEBHOOK TOOL SETUP REQUIRED
+The playback_start and playback_stop tools are webhook-based. In the Telnyx AI Assistant portal:
+1. Enable the **Webhook Tool**
+2. Add two webhook triggers (see details below for each tool)
+3. Ensure your AI instructions include the tool calls as described in STEP 2 and STEP 4 of the WARM TRANSFER flow
+
 **Tool: find_person**
 - Input: { full_name (required), dob?, county? }
 - Output: { found, person: { full_name, dob }, latest_custody: { status, total_bond, ... } }
@@ -143,16 +149,18 @@ If they say "representative," "human," "operator," etc.:
 - Output: { ok, numbers, attempt_timeout_sec, hold_music_url, whisper_text, accept_dtmf, decline_dtmf, from_caller_id, caller_hold_message }
 
 **Tool: playback_start** ← REQUIRED FOR HOLD MUSIC
-- Input: { audio_url (required), loop? (default true) }
+- Webhook URL: https://ai-agent-warrant.onrender.com/ai/playback_start
+- Input: { "call_control_id": "{{call_control_id}}", "audio_url": "https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3", "loop": true }
 - Output: { ok, status }
 - Purpose: Start playing hold music on the call immediately after telling caller to hold
-- IMPORTANT: You must provide call_control_id from the current call context
+- IMPORTANT: Call this webhook immediately after saying "Please hold"
 
 **Tool: playback_stop** ← REQUIRED TO STOP HOLD MUSIC
-- Input: { } (no required params, uses call context)
+- Webhook URL: https://ai-agent-warrant.onrender.com/ai/playback_stop
+- Input: { "call_control_id": "{{call_control_id}}" }
 - Output: { ok, status }
 - Purpose: Stop hold music when agent answers or transfer fails
-- IMPORTANT: Call this before agent comes on line so they hear the caller, not music
+- IMPORTANT: Call this webhook before agent comes on line so they hear the caller, not music
 
 ---
 ## Natural Speech Tips
