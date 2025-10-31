@@ -1,48 +1,38 @@
 ---
-description: Documentation for location tracking with provider fallback chains, accuracy verification, and compliance monitoring
+description: Technical specification for location tracking subsystem including geolocation providers, accuracy calculations, and data flow
 ---
 
 
 # location-tracking-system
 
-The location tracking system implements a multi-tiered geolocation service with compliance verification for warrant service areas.
+IMPORTANCE SCORE: 55/100
 
-Importance Score: 85/100
+The location tracking system implements geolocation services with the following key components:
 
-Core Components:
+1. Provider Fallback Chain
+- Primary location data sourced through browser geolocation API
+- Secondary fallback to IP-based geolocation 
+- Final fallback to cell tower triangulation for SMS-enabled devices
 
-1. Provider Fallback Chain (geo.py)
-- Primary GPS-based tracking with user consent requirements
-- Secondary IP-based geolocation when consent unavailable
-- Tertiary cell tower triangulation as final fallback
-- Provider-specific response normalization for consistent location data
+2. Location Accuracy Management
+- Dynamic accuracy threshold calculations based on use case
+- Confidence scoring incorporating multiple data points:
+  - GPS accuracy radius
+  - IP location confidence 
+  - Cell tower density
+- VPN/proxy detection to prevent location spoofing
 
-2. Accuracy Verification
-- Radius calculations for location precision assessment
-- Minimum accuracy thresholds for warrant service compliance
-- Geographic boundary validation for service jurisdictions
-- Confidence scoring based on provider source
+3. Geographic Restrictions 
+- County-boundary validation for check-in compliance
+- Permitted radius calculations from registered addresses
+- Exclusion zone enforcement
 
-3. Compliance Monitoring
-- VPN/proxy detection to ensure authentic location data
-- Jurisdiction validation against authorized service areas
-- Consent status tracking and verification
-- Location history maintenance for audit purposes
+Relevant File Paths:
+- app/geo.py - Core geolocation service implementation
+- app/templates/admin_last_area.html - Admin location history view
+- app/templates/checkin.html - User check-in interface
 
-4. Data Flow Model
-- Location request initiation via SMS link delivery
-- Client-side position capture with accuracy metrics
-- Server-side validation and normalization
-- Geographic compliance verification
-- Location storage with consent status
-
-5. Verification Interfaces (templates/checkin.html, preview.html)
-- Consent capture workflow
-- Location preview functionality
-- Accuracy radius visualization
-- Service area boundary display
-
-The system prioritizes accuracy and compliance while maintaining fallback capabilities for scenarios where primary location methods are unavailable.
+The system provides location validation services specifically tuned for legal compliance and check-in verification workflows.
 
 $END$
 

@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from typing import Any, Dict, Optional, List
 import time, re
+from difflib import SequenceMatcher
 from bson import ObjectId
 
 from .config import settings
@@ -447,15 +448,35 @@ def _split_name(full_name: str) -> tuple[Optional[str], Optional[str]]:
 
 def _score_simple_hit(doc: dict, want_last: Optional[str], want_first: Optional[str], dob: Optional[str]) -> int:
     sc = 0
+    doc_last = (doc.get("last_name") or "")
+    if (not doc_last) and doc.get("full_name"):
+        parts = str(doc["full_name"]).split(",", 1)
+        if parts:
+            doc_last = parts[0].strip()
+    doc_first = (doc.get("first_name") or "")
+    if (not doc_first) and doc.get("full_name"):
+        parts = str(doc["full_name"]).split(",", 1)
+        if len(parts) == 2:
+            doc_first = parts[1].strip()
     try:
-        if want_last and doc.get("last_name"):
-            if doc["last_name"].upper() == want_last.upper():
+        if want_last and doc_last:
+            dl = doc_last.upper()
+            wl = want_last.upper()
+            if dl == wl:
                 sc += 4
-            elif doc["last_name"].upper().startswith(want_last.upper()):
+            elif dl.startswith(wl):
                 sc += 2
-        if want_first and doc.get("first_name"):
-            if doc["first_name"].upper().startswith((want_first or "").upper()):
+        if want_first and doc_first:
+            want_norm = want_first.upper()
+            have_norm = doc_first.upper()
+            if have_norm.startswith(want_norm) or want_norm.startswith(have_norm):
                 sc += 2
+            else:
+                ratio = SequenceMatcher(None, have_norm, want_norm).ratio()
+                if ratio >= 0.9:
+                    sc += 2
+                elif ratio >= 0.75:
+                    sc += 1
         if dob and doc.get("dob") and str(doc["dob"]) == dob:
             sc += 3
         if doc.get("booking_date"):
@@ -469,13 +490,22 @@ def _find_in_simple(full_name: str, *, dob: Optional[str]=None, county_hint: Opt
     if not last and first:
         last, first = first, None  # single token -> treat as last name
 
-    q: Dict[str, Any] = {}
+    base_last: Dict[str, Any] = {}
     if last:
-        q["last_name"] = {"$regex": f"^{re.escape(last)}$", "$options": "i"}
+        base_last["last_name"] = {"$regex": f"^{re.escape(last)}$", "$options": "i"}
+    base_dob: Dict[str, Any] = {"dob": dob} if dob else {}
+
+    queries: List[Dict[str, Any]] = []
     if first:
-        q["first_name"] = {"$regex": f"^{re.escape(first)}", "$options": "i"}
-    if dob:
-        q["dob"] = dob
+        queries.append({**base_last, **base_dob, "first_name": {"$regex": f"^{re.escape(first)}", "$options": "i"}})
+        if len(first) >= 4:
+            queries.append({**base_last, **base_dob, "first_name": {"$regex": f"^{re.escape(first[:4])}", "$options": "i"}})
+        if len(first) >= 2:
+            queries.append({**base_last, **base_dob, "first_name": {"$regex": f"^{re.escape(first[:2])}", "$options": "i"}})
+    if base_last or base_dob:
+        queries.append({**base_last, **base_dob})
+    if not queries:
+        queries.append({"first_name": {"$regex": f"^{re.escape(first or last or full_name)}", "$options": "i"}})
 
     cols = _list_simple_cols()
     if county_hint:
@@ -484,13 +514,23 @@ def _find_in_simple(full_name: str, *, dob: Optional[str]=None, county_hint: Opt
 
     best = None
     best_score = -1
+    seen_ids: set[str] = set()
+    dedup_queries: List[Dict[str, Any]] = []
+    for q in queries:
+        if q not in dedup_queries:
+            dedup_queries.append(q)
     for col in cols:
-        cur = col.find(q).sort([("booking_date", -1)]).limit(5)
-        for d in cur:
-            sc = _score_simple_hit(d, last, first, dob)
-            if sc > best_score:
-                best, best_score = d, sc
-    return best
+        for q in dedup_queries:
+            cur = col.find(q).sort([("booking_date", -1)]).limit(5)
+            for d in cur:
+                did = str(d.get("_id"))
+                if did in seen_ids:
+                    continue
+                seen_ids.add(did)
+                sc = _score_simple_hit(d, last, first, dob)
+                if sc > best_score:
+                    best, best_score = d, sc
+    return best if best_score > 0 else None
 
 def _bail_view_from_simple(d: dict) -> dict:
     # Prefer explicit numeric bond_amount when present

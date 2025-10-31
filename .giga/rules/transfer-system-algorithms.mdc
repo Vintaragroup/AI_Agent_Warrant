@@ -1,39 +1,47 @@
 ---
-description: Documents transfer routing algorithms, agent scheduling, and warm transfer workflows for call handling
+description: Rules for analyzing complex call transfer routing and agent scheduling systems
 ---
 
 
 # transfer-system-algorithms
 
-## Core Transfer Routing Components
-
-### Agent Availability & Language Routing
-Location: `app/telnyx_tools.py`
-- County-based routing system determines Spanish/English agent requirements
-- Harris County-specific fallback logic for Spanish language support
-- Agent schedule definitions map to timezone-specific office hours
-- Real-time agent availability tracking with status flags
-
-### Warm Transfer Workflow 
-Location: `app/telnyx_tools.py`
-- Sequential agent selection based on availability and language match
-- Agent roster management with alias/phone mapping
-- Whisper message generation for incoming transfers
-- Hold music control during transfer process
-
-### Geographic Routing
-Location: `app/geo.py`
-- County determination for language preferences
-- Service area validation for transfer eligibility
-- Multi-provider location verification
-
 Importance Score: 85/100
 
-The transfer system represents core business functionality with complex routing rules and agent management. The high score reflects:
-- Custom language/region based routing logic
-- Sophisticated agent availability scheduling
-- County-specific business rules
-- Integration with location verification
+The transfer system implements complex routing rules for handling inbound calls across multiple offices and agents with specialized handling for:
+
+1. Agent Scheduling and Availability
+- Time-based office routing via `_transfer_numbers_by_schedule()`
+- County-specific schedule evaluation with fallback chains
+- Agent availability status tracking and notification
+- Timezone-aware schedule windows
+
+2. Language-Based Routing
+- Dedicated Spanish language routing for Harris County
+- Multi-language agent capability tracking
+- Language preference preservation during transfers
+
+3. Warm Transfer Workflow
+- Agent notification system using `_compose_agent_sms()` and `_compose_whisper_text()`
+- Priority-based agent selection
+- Hold music management during transfer orchestration
+
+4. Location-Based Logic  
+- County-specific routing rules
+- Office schedule overrides by jurisdiction
+- Fallback chains based on geographic proximity
+
+Core File Paths:
+- app/telnyx_tools.py:
+  - `_transfer_numbers_by_schedule()`
+  - `_agent_phone_from_name()`
+  - `_compose_agent_sms()`
+  - `_compose_whisper_text()`
+
+The system prioritizes:
+1. Language requirements
+2. Agent availability windows
+3. Geographic jurisdiction
+4. Warm transfer capabilities
 
 $END$
 
