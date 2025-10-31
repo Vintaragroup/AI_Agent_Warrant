@@ -603,7 +603,7 @@ async def find_person(payload: Dict[str, Any], request: Request):
     _auth(request)
     full_name = (payload.get("full_name") or "").strip()
     dob       = (payload.get("dob") or "").strip() or None
-    county    = (payload.get("county") or "").strip() or None
+    county    = (payload.get("county") or payload.get("location_hint") or "").strip() or None
 
     if not full_name:
         raise HTTPException(400, "Provide 'full_name'")
@@ -684,7 +684,7 @@ async def get_bail_status(payload: Dict[str, Any], request: Request):
     person_id = (payload.get("person_id") or "").strip()
     full_name = (payload.get("full_name") or "").strip()
     dob       = (payload.get("dob") or "").strip() or None
-    county    = (payload.get("county") or "").strip() or None
+    county    = (payload.get("county") or payload.get("location_hint") or "").strip() or None
 
     # FAST PATH: name lookup in simple_* first
     if full_name:
