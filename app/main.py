@@ -148,7 +148,27 @@ async def ai_playback_start(request: Request):
         }
         
         res = requests.post(api_url, json=payload, headers=headers, timeout=10)
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            err_body = ""
+            status = res.status_code if res is not None else None
+            try:
+                err_body = res.text if res is not None else ""
+            except Exception:
+                err_body = "<unreadable response>"
+            logs.insert_one({
+                "type": "ai_playback_start_error",
+                "ts": int(time.time()),
+                "call_control_id": call_control_id,
+                "status": status,
+                "response": err_body,
+                "error": str(e)
+            })
+            return JSONResponse(
+                status_code=500,
+                content={"ok": False, "error": f"Playback start failed: {status} {err_body}".strip()}
+            )
         
         logs.insert_one({
             "type": "ai_playback_start",
@@ -163,17 +183,6 @@ async def ai_playback_start(request: Request):
             content={"ok": True, "status": "playback_started"}
         )
     
-    except requests.exceptions.RequestException as e:
-        err_msg = str(e)
-        logs.insert_one({
-            "type": "ai_playback_start_error",
-            "ts": int(time.time()),
-            "error": err_msg
-        })
-        return JSONResponse(
-            status_code=500,
-            content={"ok": False, "error": f"Playback start failed: {err_msg}"}
-        )
     except Exception as e:
         err_msg = str(e)
         logs.insert_one({

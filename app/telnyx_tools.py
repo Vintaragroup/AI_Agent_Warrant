@@ -1288,7 +1288,23 @@ async def playback_start(payload: Dict[str, Any], request: Request):
     try:
         api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_start"
         res = requests.post(api_url, json=body, headers=headers, timeout=10)
-        res.raise_for_status()
+        try:
+            res.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            status = res.status_code if res is not None else None
+            try:
+                body_txt = res.text if res is not None else ""
+            except Exception:
+                body_txt = "<unreadable response>"
+            logs.insert_one({
+                "type": "telnyx_playback_start_error",
+                "ts": int(time.time()),
+                "call_control_id": call_control_id,
+                "status": status,
+                "response": body_txt,
+                "error": str(e)
+            })
+            raise HTTPException(500, f"Playback start failed: {status} {body_txt}".strip())
         data = res.json()
         
         logs.insert_one({
