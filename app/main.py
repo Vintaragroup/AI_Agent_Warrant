@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import time, json, os, requests
+import time, json, os, requests, re
 
 from .config import settings
 from .db import cases, checkins, links, logs
@@ -135,6 +135,28 @@ async def ai_playback_start(request: Request):
                 status_code=400,
                 content={"ok": False, "error": "Missing call_control_id or audio_url"}
             )
+
+        # Guard against placeholder or obviously invalid call_control_id values
+        ccid_trim = call_control_id.strip()
+        if ccid_trim.lower() in {"call_control_id", "{{call_control_id}}"} or " " in ccid_trim:
+            logs.insert_one({
+                "type": "ai_playback_start_error",
+                "ts": int(time.time()),
+                "call_control_id": ccid_trim,
+                "error": "placeholder_call_control_id"
+            })
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Invalid call_control_id placeholder detected"}
+            )
+
+        if not re.match(r"^v[0-9].*", ccid_trim):
+            logs.insert_one({
+                "type": "ai_playback_start_warning",
+                "ts": int(time.time()),
+                "call_control_id": ccid_trim,
+                "warning": "call_control_id_unexpected_format"
+            })
         
         # Call Telnyx Call Control API to start playback
         api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_start"

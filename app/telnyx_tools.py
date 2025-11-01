@@ -1342,6 +1342,24 @@ async def playback_start(payload: Dict[str, Any], request: Request):
     
     if not call_control_id or not audio_url:
         raise HTTPException(400, "Provide 'call_control_id' and 'audio_url'")
+
+    ccid_trim = call_control_id.strip()
+    if ccid_trim.lower() in {"call_control_id", "{{call_control_id}}"} or " " in ccid_trim:
+        logs.insert_one({
+            "type": "telnyx_playback_start_error",
+            "ts": int(time.time()),
+            "call_control_id": ccid_trim,
+            "error": "placeholder_call_control_id"
+        })
+        raise HTTPException(400, "Invalid call_control_id placeholder detected")
+
+    if not re.match(r"^v[0-9].*", ccid_trim):
+        logs.insert_one({
+            "type": "telnyx_playback_start_warning",
+            "ts": int(time.time()),
+            "call_control_id": ccid_trim,
+            "warning": "call_control_id_unexpected_format"
+        })
     
     import requests
     headers = {
