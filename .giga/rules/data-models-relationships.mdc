@@ -1,60 +1,50 @@
 ---
-description: Guidelines for documenting data models and relationships in warrant/bail management systems
+description: Documents core data models and relationships between inmates, cases, agents, locations, and bond records
 ---
 
 
 # data-models-relationships
 
-Importance Score: 75/100
+Core data model relationships focus on tracking location compliance and case management:
 
-Core Data Models:
+Key Entities:
+- Inmates: Tracked individuals with cases and bond requirements
+- Cases: Legal proceedings with associated compliance requirements 
+- Locations: Geographic zones and check-in points
+- Agents: Law enforcement personnel monitoring compliance
+- Bond Records: Compliance requirements and verification history
 
-1. Inmate Records
-- Central entity tracking individuals in custody 
-- Linked to multiple cases and bond records
-- Contains biometric and demographic data
+Primary Relationships:
 
-2. Case Management
-- Tracks warrant and case status
-- Associates inmates with jurisdictions
-- Links to bond eligibility rules
+1. Inmate-Case Association
+- One inmate can have multiple active cases
+- Each case tracks compliance requirements
+- Cases link to bond records for verification rules
 
-3. Bond Records
-- Stores bond amounts and conditions
-- Maintains payment status and history
-- References authorizing agents
+2. Location Compliance Mapping
+- Cases define allowed geographic zones
+- Check-in points verify presence in allowed areas
+- Location history maintains compliance audit trail
 
-4. Agent Management 
-- Stores agent credentials and jurisdictions
-- Tracks agent availability and assignments
-- Links to bond authorizations
+3. Agent-Case Assignment
+- Agents monitor specific case portfolios
+- Location verification responsibilities
+- Compliance notification workflows
 
-5. Location Records
-- Geofence definitions for check-ins
-- Consent-based tracking data
-- Associates locations with cases
+4. Bond Record Linkages
+- Connected to specific cases and inmates
+- Defines compliance requirements
+- Tracks verification attempts and results
 
-Key Relationships:
+Importance Score: 95/100
 
-1. Inmate -> Cases (1:Many)
-- Single inmate can have multiple active cases
-- Each case links to specific jurisdiction rules
+Reasoning:
+- Core data models define critical business relationships
+- Complex compliance tracking requirements
+- Multi-entity relationships for verification workflows
+- Mission-critical case management associations
 
-2. Cases -> Bonds (1:Many)
-- Cases may have multiple bond records
-- Bond status tied to case status
-
-3. Bonds -> Agents (Many:Many)
-- Multiple agents can manage bond records
-- Agents handle bonds across jurisdictions
-
-4. Cases -> Locations (1:Many) 
-- Check-in locations tied to specific cases
-- Multiple approved check-in points per case
-
-Relevant Files:
-- app/db.py
-- app/storage.py
+The data model focuses on maintaining verifiable relationships between legal cases, tracked individuals, and compliance requirements while supporting location-based verification workflows.
 
 $END$
 

@@ -1,38 +1,55 @@
 ---
-description: Technical specification for location tracking subsystem including geolocation providers, accuracy calculations, and data flow
+description: Technical specification for implementing location tracking and geolocation services with fallback chains and accuracy verification
 ---
 
 
 # location-tracking-system
 
-IMPORTANCE SCORE: 55/100
+The location tracking system implements a multi-layered geolocation verification workflow for defendant compliance monitoring:
 
-The location tracking system implements geolocation services with the following key components:
+Core Location Verification Components:
 
-1. Provider Fallback Chain
-- Primary location data sourced through browser geolocation API
-- Secondary fallback to IP-based geolocation 
-- Final fallback to cell tower triangulation for SMS-enabled devices
+1. GPS-Based Primary Tracking
+- Consent-based GPS location capture 
+- Accuracy radius calculation and validation
+- Geographic compliance zone verification
+- Automated timestamp correlation
 
-2. Location Accuracy Management
-- Dynamic accuracy threshold calculations based on use case
-- Confidence scoring incorporating multiple data points:
-  - GPS accuracy radius
-  - IP location confidence 
-  - Cell tower density
-- VPN/proxy detection to prevent location spoofing
+2. IP Geolocation Fallback Chain
+- Secondary location verification when GPS unavailable
+- Provider fallback sequence for reliability
+- VPN/proxy detection and filtering
+- Last known location caching
 
-3. Geographic Restrictions 
-- County-boundary validation for check-in compliance
-- Permitted radius calculations from registered addresses
-- Exclusion zone enforcement
+3. Administrative Monitoring
+- Geographic visualization of compliance zones
+- Real-time location tracking with accuracy metrics
+- Audit trail of location verification attempts
+- Non-compliance detection and alerting
 
-Relevant File Paths:
-- app/geo.py - Core geolocation service implementation
-- app/templates/admin_last_area.html - Admin location history view
-- app/templates/checkin.html - User check-in interface
+Location Data Flow:
+```
+GPS Request -> Accuracy Validation -> Zone Compliance Check -> Storage
+     |
+     v
+IP Fallback -> VPN Detection -> Provider Verification -> Last Known Area
+```
 
-The system provides location validation services specifically tuned for legal compliance and check-in verification workflows.
+Key Business Rules:
+- Location accuracy must meet minimum threshold for compliance
+- Multiple verification attempts required for non-GPS sources
+- Geographic zones defined by coordinate boundaries
+- Timestamp verification for check-in validity
+- Automated escalation for compliance violations
+
+Importance Score: 85/100
+
+Reasoning:
+- Mission-critical compliance verification system
+- Multi-layered location validation workflows
+- Complex geographic zone management
+- Sophisticated fallback mechanisms
+- Core to business monitoring requirements
 
 $END$
 

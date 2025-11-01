@@ -13,47 +13,54 @@
 - Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
 
 
-Bond Management and Call Routing System
-
-Importance Score: 85/100
+Location Compliance and Verification System for Law Enforcement
 
 Core Business Components:
 
-1. Bond Processing Engine
-- Eligibility determination based on bond type and conditions
-- Custom bond amount validation and parsing
-- Multi-stage verification workflow with human review triggers
-- Agent notification system with context-aware messaging
+1. Location Compliance Tracking (`app/main.py`)
+- Automated GPS and photo-based check-in workflow for defendants
+- Geofencing compliance verification with accuracy radius tracking
+- Beaconing system for monitoring compliance attempt patterns
+- Administrative oversight tools for location monitoring
 
-2. Office Routing Controller
-- County-specific schedule management
-- Time-zone aware transfer routing
-- Language-based routing (English/Spanish) specialization
-- Harris County Spanish language special handling
+2. Multi-Channel Notification System (`app/sms.py`)
+- Unified messaging across SMS, WhatsApp, and MMS channels
+- Provider redundancy with Telnyx and Twilio integration
+- Guaranteed message delivery with idempotency controls
+- Automated compliance reminder queuing
 
-3. Agent Coordination System
-- Fuzzy name matching for agent lookup
-- Agent availability tracking
-- Priority-based notification chains
-- Multi-agent warm transfer coordination
+3. Secure Access Control (`app/tokens.py`)
+- Time-limited verification tokens for compliance actions
+- One-time use check-in links with tracking
+- Secure authorization for photo and location submission
 
-4. Call Management
-- Specialized hold music delivery
-- Transfer state management
-- Agent whisper system for context sharing
-- County-specific transfer rules
+Key Workflows:
 
-Key Integration Points:
-- Bond eligibility determination service
-- Multi-county scheduling system 
-- Agent availability tracker
-- Language-specific routing rules
+1. Defendant Check-in Process
+- Multi-factor location verification (GPS + Photo)
+- Automated timestamp and geolocation validation
+- Compliance attempt tracking and refusal documentation
+- Geographic zone restriction enforcement
 
-Critical Files:
-- app/telnyx_tools.py (bond management, routing logic, agent coordination)
-- app/main.py (call control and transfer management)
+2. Administrative Monitoring
+- Real-time location tracking with accuracy metrics
+- Compliance zone management and violation alerting
+- Detailed audit trails for enforcement actions
+- Last known location tracking for warrant service
 
-This system implements specialized bond processing workflows and intelligent call routing with deep integration of business rules around eligibility, scheduling, and agent management.
+3. Automated Notifications
+- Progressive messaging with provider fallbacks
+- Trackable compliance link distribution
+- Response monitoring and escalation
+
+Importance Score: 85/100
+
+Reasoning:
+- Mission-critical compliance verification system
+- Complex multi-factor authentication workflows
+- Sophisticated location tracking and monitoring
+- Law enforcement-specific notification requirements
+- Integration of multiple verification methods
 
 $END$
 

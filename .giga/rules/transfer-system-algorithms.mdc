@@ -1,47 +1,36 @@
 ---
-description: Rules for analyzing complex call transfer routing and agent scheduling systems
+description: For tasks involving warm transfer routing, agent scheduling, and language/timezone handling for transfers
 ---
 
 
 # transfer-system-algorithms
 
-Importance Score: 85/100
+The transfer system implements specialized routing logic for coordinating warm transfers between law enforcement agents and services.
 
-The transfer system implements complex routing rules for handling inbound calls across multiple offices and agents with specialized handling for:
+Key components:
 
-1. Agent Scheduling and Availability
-- Time-based office routing via `_transfer_numbers_by_schedule()`
-- County-specific schedule evaluation with fallback chains
-- Agent availability status tracking and notification
-- Timezone-aware schedule windows
+1. Warm Transfer Protocol
+- Sequential routing through prioritized contact numbers
+- Configurable timeout controls for transfer attempts 
+- Agent whisper system delivers context before transfer completion
+- DTMF-based controls for accept/decline transfer actions
 
-2. Language-Based Routing
-- Dedicated Spanish language routing for Harris County
-- Multi-language agent capability tracking
-- Language preference preservation during transfers
+2. Contact Sequencing Logic
+- Prioritized number list based on agent availability
+- Fallback routing to alternate numbers on timeout/decline
+- Transfer queuing system for high-volume periods
 
-3. Warm Transfer Workflow
-- Agent notification system using `_compose_agent_sms()` and `_compose_whisper_text()`
-- Priority-based agent selection
-- Hold music management during transfer orchestration
+Relevant files:
+- `app/main.py` - Core transfer routing implementation
+- `app/sms.py` - SMS-based agent notifications and confirmations
 
-4. Location-Based Logic  
-- County-specific routing rules
-- Office schedule overrides by jurisdiction
-- Fallback chains based on geographic proximity
+Business Impact Score: 80/100
 
-Core File Paths:
-- app/telnyx_tools.py:
-  - `_transfer_numbers_by_schedule()`
-  - `_agent_phone_from_name()`
-  - `_compose_agent_sms()`
-  - `_compose_whisper_text()`
-
-The system prioritizes:
-1. Language requirements
-2. Agent availability windows
-3. Geographic jurisdiction
-4. Warm transfer capabilities
+Justification:
+- Mission-critical law enforcement communication coordination
+- Complex agent availability and routing rules
+- Specialized warm transfer workflow for sensitive cases
+- Direct integration with warrant service operations
 
 $END$
 

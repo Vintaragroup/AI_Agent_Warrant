@@ -1,29 +1,49 @@
 ---
-description: Documentation for bail status determination algorithms and bond processing rules
+description: Technical specifications for bail processing algorithms, bond validation, and eligibility determination logic
 ---
 
 
 # bail-processing-algorithms
 
-The bail processing system implements specialized bond eligibility and status determination through several key components:
+The bail processing system implements domain-specific workflows for handling defendant verification and compliance:
 
-## Bond Eligibility Determination
-- Custom bond amount parsing via `_parse_bond_label()`
-- Complex eligibility rules in `_bail_view_from_simple()`
-- Automatic triggering of human review based on business criteria 
-- Multi-step validation workflows for bond status changes
+## Core Components
 
-## Bond Status Processing
-- Bond format normalization rules
-- County-specific bond eligibility requirements
-- Fast-path lookups for common bond types
-- Validation chains with fallback handling
+### Compliance Check-in Workflow
+- Location-based compliance verification for defendants on bail
+- Multi-factor authentication combining GPS data and photo verification 
+- Automated timestamp and geolocation validation
+- Compliance attempt tracking with refusal monitoring
+
+### Bond Status Processing
+- Automated bond eligibility determination
+- SMS-based compliance notification delivery
+- Time-limited verification tokens for compliance actions
+- Provider fallback system for notification delivery
+
+### Location Monitoring
+- Geographic compliance zone enforcement
+- Last known location tracking with accuracy metrics
+- Administrative oversight tools for compliance verification
+- Audit trail generation for verification attempts
+
+## Integration Points
+
+### SMS Integration
+- Multi-provider messaging system supporting SMS, WhatsApp, and MMS
+- Idempotent message delivery guarantees
+- Automated follow-up queue management
+
+### Token Generation
+- One-time secure check-in link creation
+- Time-bounded verification windows
+- Compliance action authorization
 
 Importance Score: 85/100
-The bond processing algorithms represent core business logic with complex domain rules around eligibility determination and status processing.
-
-Relevant Files:
-- app/telnyx_tools.py (bond processing implementation)
+- Mission-critical compliance verification system
+- Complex multi-factor authentication workflows
+- Geographic monitoring with administrative controls
+- Sophisticated notification delivery with fallbacks
 
 $END$
 
