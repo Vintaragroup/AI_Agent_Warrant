@@ -42,6 +42,35 @@ def _verify_webhook_secret(req: Request) -> None:
     if not hdr or hdr != secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
+
+def _normalize_dob_input(dob: Optional[str]) -> Optional[str]:
+    """Normalize incoming DOB strings to MM/DD[/YYYY] to improve lookup matching."""
+    if not dob:
+        return None
+    s = dob.strip()
+    if not s:
+        return None
+    parts = re.findall(r"\d+", s)
+    if not parts:
+        return s.replace("-", "/").replace(".", "/")
+    try:
+        if len(parts) >= 3:
+            month = int(parts[0])
+            day = int(parts[1])
+            year = int(parts[2])
+            if not (1 <= month <= 12 and 1 <= day <= 31):
+                raise ValueError
+            return f"{month:02d}/{day:02d}/{year:04d}"
+        if len(parts) == 2:
+            month = int(parts[0])
+            day = int(parts[1])
+            if not (1 <= month <= 12 and 1 <= day <= 31):
+                raise ValueError
+            return f"{month:02d}/{day:02d}"
+    except Exception:
+        pass
+    return s.replace("-", "/").replace(".", "/")
+
 def _e164(phone: str | None) -> Optional[str]:
     if not phone:
         return None
@@ -52,6 +81,33 @@ def _normalize_name(s: Optional[str]) -> Optional[str]:
     if not s:
         return None
     return re.sub(r"[^a-z]", "", s.lower()) or None
+
+def _name_variants(full_name: str) -> List[str]:
+    """Return possible name variants (e.g., 'First Last' -> 'Last, First')."""
+    name = (full_name or "").strip()
+    if not name:
+        return []
+    variants: List[str] = []
+    def _add(v: str) -> None:
+        v = v.strip()
+        if v and v not in variants:
+            variants.append(v)
+
+    _add(name)
+
+    if "," in name:
+        last, first = [part.strip() for part in name.split(",", 1)]
+        if first and last:
+            _add(f"{first} {last}")
+            _add(f"{last} {first}")
+    else:
+        parts = [p for p in name.split() if p]
+        if len(parts) >= 2:
+            first = parts[0]
+            last = parts[-1]
+            _add(f"{last}, {first}")
+            _add(f"{last} {first}")
+    return variants
 
 def _agents_map() -> dict:
     import json as _json
@@ -602,7 +658,7 @@ async def find_person(payload: Dict[str, Any], request: Request):
     """
     _auth(request)
     full_name = (payload.get("full_name") or "").strip()
-    dob       = (payload.get("dob") or "").strip() or None
+    dob       = _normalize_dob_input(payload.get("dob"))
     county    = (payload.get("county") or payload.get("location_hint") or "").strip() or None
 
     if not full_name:
@@ -631,9 +687,16 @@ async def find_person(payload: Dict[str, Any], request: Request):
         return {"found": True, "person": person_out, "latest_custody": latest}
 
     # FALLBACK: persons + custody_events
-    q: Dict[str, Any] = {"full_name": full_name}
+    name_variants = _name_variants(full_name)
+    name_filters: List[Dict[str, Any]] = []
+    for variant in name_variants or [full_name]:
+        name_filters.append({"full_name": {"$regex": f"^{re.escape(variant)}$", "$options": "i"}})
+
+    q: Dict[str, Any]
     if dob:
-        q["dob"] = dob
+        q = {"$and": [{"dob": dob}, {"$or": name_filters}]}
+    else:
+        q = {"$or": name_filters}
 
     pdoc = persons.find_one(q)
     if not pdoc:
@@ -683,7 +746,7 @@ async def get_bail_status(payload: Dict[str, Any], request: Request):
 
     person_id = (payload.get("person_id") or "").strip()
     full_name = (payload.get("full_name") or "").strip()
-    dob       = (payload.get("dob") or "").strip() or None
+    dob       = _normalize_dob_input(payload.get("dob"))
     county    = (payload.get("county") or payload.get("location_hint") or "").strip() or None
 
     # FAST PATH: name lookup in simple_* first
@@ -700,9 +763,14 @@ async def get_bail_status(payload: Dict[str, Any], request: Request):
             raise HTTPException(400, "Invalid person_id")
         pdoc = persons.find_one({"_id": oid})
     elif full_name:
-        q: Dict[str, Any] = {"full_name": full_name}
+        name_variants = _name_variants(full_name)
+        name_filters: List[Dict[str, Any]] = []
+        for variant in name_variants or [full_name]:
+            name_filters.append({"full_name": {"$regex": f"^{re.escape(variant)}$", "$options": "i"}})
         if dob:
-            q["dob"] = dob
+            q = {"$and": [{"dob": dob}, {"$or": name_filters}]}
+        else:
+            q = {"$or": name_filters}
         pdoc = persons.find_one(q)
     else:
         raise HTTPException(400, "Provide person_id OR full_name")
