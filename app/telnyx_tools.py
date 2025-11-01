@@ -1507,11 +1507,12 @@ async def telnyx_debug_recent(request: Request, types: Optional[str] = None, lim
             out.append({
                 "ts": d.get("ts"),
                 "type": d.get("type"),
-                "to": d.get("to"),
-                "from": d.get("from"),
+                "call_control_id": d.get("call_control_id"),
+                "status": d.get("status"),
+                "error": d.get("error"),
+                "response": d.get("response"),
                 "notes": d.get("notes"),
-                "err": d.get("err"),
-                "hint": small
+                "meta": small
             })
         return {"ok": True, "count": len(out), "items": out}
     except Exception as e:
