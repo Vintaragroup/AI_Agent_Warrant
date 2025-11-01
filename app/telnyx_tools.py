@@ -1366,10 +1366,16 @@ async def playback_start(payload: Dict[str, Any], request: Request):
         "Authorization": f"Bearer {settings.TELNYX_API_KEY}",
         "Content-Type": "application/json"
     }
-    body = {
+    body: Dict[str, Any] = {
         "audio_url": audio_url,
-        "loop": bool(loop)
     }
+    if isinstance(loop, bool):
+        body["loop"] = loop
+    elif isinstance(loop, str):
+        if loop.lower() in {"true", "1"}:
+            body["loop"] = True
+        elif loop.lower() in {"false", "0"}:
+            body["loop"] = False
     
     try:
         api_url = f"https://api.telnyx.com/v2/calls/{call_control_id}/actions/playback_start"

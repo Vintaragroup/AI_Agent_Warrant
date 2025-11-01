@@ -165,9 +165,16 @@ async def ai_playback_start(request: Request):
             "Content-Type": "application/json"
         }
         payload = {
-            "audio_url": audio_url,
-            "loop": loop
+            "audio_url": audio_url
         }
+        if isinstance(loop, bool):
+            payload["loop"] = loop
+        elif isinstance(loop, str):
+            if loop.lower() in {"true", "1"}:
+                payload["loop"] = True
+            elif loop.lower() in {"false", "0"}:
+                payload["loop"] = False
+        # Ignore loop when value is not a recognizable boolean
         
         res = requests.post(api_url, json=payload, headers=headers, timeout=10)
         try:
