@@ -1254,9 +1254,16 @@ async def telnyx_ai_events(payload: Dict[str, Any], request: Request):
     Secured with optional X-Telnyx-Secret if configured. Does not require Bearer token.
     """
     _verify_webhook_secret(request)
+    data = payload.get("data") or {}
+    event_type = data.get("event_type")
+    session_id = data.get("session_id") or data.get("id") or payload.get("session_id")
+    call_control_id = (data.get("payload") or {}).get("call_control_id")
     logs.insert_one({
         "type": "telnyx_ai_events",
         "ts": int(time.time()),
+        "event_type": event_type,
+        "session_id": session_id,
+        "call_control_id": call_control_id,
         "payload": payload
     })
     return {"ok": True}
@@ -1267,9 +1274,19 @@ async def telnyx_call_events(payload: Dict[str, Any], request: Request):
     Secured with optional X-Telnyx-Secret.
     """
     _verify_webhook_secret(request)
+    data = payload.get("data") or {}
+    event_type = data.get("event_type")
+    call_payload = data.get("payload") or {}
+    call_control_id = call_payload.get("call_control_id") or call_payload.get("call_control_id_a")
+    call_session_id = call_payload.get("call_session_id")
+    connection_id = call_payload.get("connection_id")
     logs.insert_one({
         "type": "telnyx_call_events",
         "ts": int(time.time()),
+        "event_type": event_type,
+        "call_control_id": call_control_id,
+        "call_session_id": call_session_id,
+        "connection_id": connection_id,
         "payload": payload
     })
     return {"ok": True}
@@ -1501,12 +1518,58 @@ async def telnyx_debug_recent(request: Request, types: Optional[str] = None, lim
                 "ts": d.get("ts"),
                 "type": d.get("type"),
                 "call_control_id": d.get("call_control_id"),
+                "call_session_id": d.get("call_session_id"),
                 "status": d.get("status"),
                 "error": d.get("error"),
                 "response": d.get("response"),
+                "event_type": d.get("event_type"),
                 "notes": d.get("notes"),
                 "meta": small
             })
         return {"ok": True, "count": len(out), "items": out}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"debug_recent error: {e}")
+
+
+@router.get("/call_log")
+async def telnyx_call_log(
+    request: Request,
+    call_control_id: Optional[str] = None,
+    call_session_id: Optional[str] = None,
+    limit: int = 200
+):
+    """Fetch detailed log records for a specific call or session."""
+    _auth(request)
+    if not call_control_id and not call_session_id:
+        raise HTTPException(400, "Provide call_control_id or call_session_id")
+    try:
+        q: Dict[str, Any] = {"$or": []}
+        if call_control_id:
+            q["$or"].append({"call_control_id": call_control_id})
+            # Also consider nested payloads for historical entries
+            q["$or"].append({"payload.data.payload.call_control_id": call_control_id})
+        if call_session_id:
+            q["$or"].append({"call_session_id": call_session_id})
+            q["$or"].append({"payload.data.payload.call_session_id": call_session_id})
+        if not q["$or"]:
+            raise HTTPException(400, "Invalid query parameters")
+        lim = max(1, min(int(limit or 100), 500))
+        cur = logs.find(q).sort([("ts", -1)]).limit(lim)
+        items: List[Dict[str, Any]] = []
+        for d in cur:
+            rec = {
+                "ts": d.get("ts"),
+                "type": d.get("type"),
+                "event_type": d.get("event_type"),
+                "call_control_id": d.get("call_control_id"),
+                "call_session_id": d.get("call_session_id"),
+                "status": d.get("status"),
+                "error": d.get("error"),
+                "response": d.get("response"),
+                "notes": d.get("notes"),
+                "payload": d.get("payload")
+            }
+            items.append(rec)
+        return {"ok": True, "count": len(items), "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"call_log error: {e}")
