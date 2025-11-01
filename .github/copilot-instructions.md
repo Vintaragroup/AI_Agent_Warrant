@@ -13,54 +13,43 @@
 - Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
 
 
-Location Compliance and Verification System for Law Enforcement
+Bond Compliance Monitoring System integrating location tracking, verification workflows, and bail management capabilities.
 
-Core Business Components:
+## Core Components
 
-1. Location Compliance Tracking (`app/main.py`)
-- Automated GPS and photo-based check-in workflow for defendants
-- Geofencing compliance verification with accuracy radius tracking
-- Beaconing system for monitoring compliance attempt patterns
-- Administrative oversight tools for location monitoring
+### Compliance Verification System
+- Location-based check-in mechanism with dual-mode verification (GPS + photo)
+- Token-based workflow for bond compliance validation
+- Real-time location accuracy monitoring with radius visualization
+- Explicit refusal tracking for compliance documentation
+- Geographic boundary enforcement with multi-jurisdiction support
 
-2. Multi-Channel Notification System (`app/sms.py`)
-- Unified messaging across SMS, WhatsApp, and MMS channels
-- Provider redundancy with Telnyx and Twilio integration
-- Guaranteed message delivery with idempotency controls
-- Automated compliance reminder queuing
+### Administrative Monitoring
+`app/main.py`:
+- Location visualization dashboard for compliance tracking
+- Time-stamped verification checkpoints
+- County-based routing for multi-jurisdiction management
+- SMS notification integration for compliance requests
 
-3. Secure Access Control (`app/tokens.py`)
-- Time-limited verification tokens for compliance actions
-- One-time use check-in links with tracking
-- Secure authorization for photo and location submission
+### Verification Interfaces
+`app/templates/checkin.html`:
+- Geolocation capture with accuracy reporting
+- Optional facial verification through selfie system
+- Compliance documentation with explicit consent tracking
+- Real-time location validation
 
-Key Workflows:
+`app/templates/admin_last_area.html`:
+- Geographic compliance boundary visualization
+- Location uncertainty radius mapping
+- Historical tracking interface
+- Time-based monitoring controls
 
-1. Defendant Check-in Process
-- Multi-factor location verification (GPS + Photo)
-- Automated timestamp and geolocation validation
-- Compliance attempt tracking and refusal documentation
-- Geographic zone restriction enforcement
-
-2. Administrative Monitoring
-- Real-time location tracking with accuracy metrics
-- Compliance zone management and violation alerting
-- Detailed audit trails for enforcement actions
-- Last known location tracking for warrant service
-
-3. Automated Notifications
-- Progressive messaging with provider fallbacks
-- Trackable compliance link distribution
-- Response monitoring and escalation
-
-Importance Score: 85/100
-
-Reasoning:
-- Mission-critical compliance verification system
-- Complex multi-factor authentication workflows
-- Sophisticated location tracking and monitoring
-- Law enforcement-specific notification requirements
-- Integration of multiple verification methods
+### Compliance Workflow Integration
+- Two-factor verification combining location and photo evidence
+- Multi-jurisdiction compliance boundary management
+- Audit trail maintenance for legal documentation
+- Privacy-aware location tracking implementation
+- Multiple verification modes for different compliance scenarios
 
 $END$
 

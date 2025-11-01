@@ -1,55 +1,53 @@
 ---
-description: Technical specification for implementing location tracking and geolocation services with fallback chains and accuracy verification
+description: Core location tracking, geofencing and geographic verification system for bail compliance monitoring
 ---
 
 
 # location-tracking-system
 
-The location tracking system implements a multi-layered geolocation verification workflow for defendant compliance monitoring:
+The location tracking system implements multi-layered geographic verification for bail compliance monitoring:
 
-Core Location Verification Components:
+## Verification Workflows
 
-1. GPS-Based Primary Tracking
-- Consent-based GPS location capture 
-- Accuracy radius calculation and validation
-- Geographic compliance zone verification
-- Automated timestamp correlation
+1. Primary Location Check
+- Dual-mode verification combining GPS coordinates with photo evidence
+- Real-time accuracy radius calculations for compliance boundary enforcement
+- Geographic fence validation against authorized zones
+- Explicit consent tracking for location access
 
-2. IP Geolocation Fallback Chain
-- Secondary location verification when GPS unavailable
-- Provider fallback sequence for reliability
-- VPN/proxy detection and filtering
-- Last known location caching
+2. Administrative Monitoring
+- Accuracy radius visualization for location uncertainty ranges
+- Geographic compliance boundary overlay system
+- Time-based location tracking with jurisdiction support
+- Last known position monitoring with confidence metrics
 
-3. Administrative Monitoring
-- Geographic visualization of compliance zones
-- Real-time location tracking with accuracy metrics
-- Audit trail of location verification attempts
-- Non-compliance detection and alerting
+## Location Data Processing
 
-Location Data Flow:
-```
-GPS Request -> Accuracy Validation -> Zone Compliance Check -> Storage
-     |
-     v
-IP Fallback -> VPN Detection -> Provider Verification -> Last Known Area
-```
+1. Geographic Validation
+- County-based routing and jurisdiction assignment
+- Compliance boundary intersection detection
+- Location accuracy threshold enforcement
+- Time-stamped position logging
 
-Key Business Rules:
-- Location accuracy must meet minimum threshold for compliance
-- Multiple verification attempts required for non-GPS sources
-- Geographic zones defined by coordinate boundaries
-- Timestamp verification for check-in validity
-- Automated escalation for compliance violations
+2. Visualization Components
+- Real-time position plotting on administrative interfaces
+- Accuracy circle rendering for location uncertainty
+- Compliant/non-compliant zone highlighting
+- Historical path tracking visualization
+
+## Integration Points
+
+Location data flows into:
+- Token-based verification workflows
+- Photo compliance evidence collection
+- SMS notification triggers
+- Multi-jurisdiction compliance monitoring
 
 Importance Score: 85/100
-
-Reasoning:
-- Mission-critical compliance verification system
-- Multi-layered location validation workflows
-- Complex geographic zone management
-- Sophisticated fallback mechanisms
-- Core to business monitoring requirements
+- Critical for core compliance verification
+- Implements legally-mandated location monitoring
+- Supports multi-factor verification workflows
+- Provides essential administrative oversight capabilities
 
 $END$
 

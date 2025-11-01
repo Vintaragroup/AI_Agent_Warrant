@@ -1,36 +1,53 @@
 ---
-description: For tasks involving warm transfer routing, agent scheduling, and language/timezone handling for transfers
+description: Rules for analyzing complex call transfer routing and agent workflows within the warrant/bail management system
 ---
 
 
 # transfer-system-algorithms
 
-The transfer system implements specialized routing logic for coordinating warm transfers between law enforcement agents and services.
+## Core Transfer Routing Logic
+Importance Score: 85/100
 
-Key components:
+The transfer system implements specialized routing for warrant and bail-related calls through:
 
-1. Warm Transfer Protocol
-- Sequential routing through prioritized contact numbers
-- Configurable timeout controls for transfer attempts 
-- Agent whisper system delivers context before transfer completion
-- DTMF-based controls for accept/decline transfer actions
+1. Prioritized Agent Selection
+- Jurisdiction-based routing for warrant verification 
+- Language preference matching for multi-lingual support
+- Timezone-aware agent availability scheduling
 
-2. Contact Sequencing Logic
-- Prioritized number list based on agent availability
-- Fallback routing to alternate numbers on timeout/decline
-- Transfer queuing system for high-volume periods
+2. Warm Transfer Workflow
+- Agent whisper system providing case context before connection
+- DTMF-based transfer acceptance/rejection flow
+- Configurable hold patterns during agent location
 
-Relevant files:
-- `app/main.py` - Core transfer routing implementation
-- `app/sms.py` - SMS-based agent notifications and confirmations
+3. Case Context Preservation
+- Automated transfer of warrant/case details between agents
+- Preservation of verification state through transfers
+- Multi-party compliance monitoring during transfers
 
-Business Impact Score: 80/100
+## Geographic Routing Rules 
 
-Justification:
-- Mission-critical law enforcement communication coordination
-- Complex agent availability and routing rules
-- Specialized warm transfer workflow for sensitive cases
-- Direct integration with warrant service operations
+The system routes transfers based on:
+- County-specific jurisdiction requirements
+- Agent certification levels for specific case types
+- Geographic compliance boundaries
+- Local warrant verification authority
+
+## Compliance Handling
+
+Transfer workflows maintain:
+- Continuous recording for legal documentation
+- Agent authorization verification
+- Case-specific compliance requirements
+- Jurisdiction chain of custody
+
+## Hold Pattern Management
+
+Implements specialized hold management:
+- Case status announcements during hold
+- Compliance reminder messaging
+- Jurisdiction-specific hold requirements
+- Required legal notifications
 
 $END$
 

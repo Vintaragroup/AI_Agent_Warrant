@@ -1,49 +1,37 @@
 ---
-description: Technical specifications for bail processing algorithms, bond validation, and eligibility determination logic
+description: Specification for bail status processing, inmate lookup, and automated bail inquiry systems
 ---
 
 
 # bail-processing-algorithms
 
-The bail processing system implements domain-specific workflows for handling defendant verification and compliance:
+The bail processing system implements automated workflows for managing bail status inquiries and inmate lookups.
 
-## Core Components
+Key Components:
 
-### Compliance Check-in Workflow
-- Location-based compliance verification for defendants on bail
-- Multi-factor authentication combining GPS data and photo verification 
-- Automated timestamp and geolocation validation
-- Compliance attempt tracking with refusal monitoring
+1. Bail Status Processing
+- Automated bail inquiry creation and routing
+- Inmate record lookup and validation
+- Status normalization across jurisdictions
 
-### Bond Status Processing
-- Automated bond eligibility determination
-- SMS-based compliance notification delivery
-- Time-limited verification tokens for compliance actions
-- Provider fallback system for notification delivery
+2. Eligibility Determination
+- Multi-jurisdiction bail rules processing 
+- Bond format standardization
+- Compliance verification workflows
 
-### Location Monitoring
-- Geographic compliance zone enforcement
-- Last known location tracking with accuracy metrics
-- Administrative oversight tools for compliance verification
-- Audit trail generation for verification attempts
+3. AI-Powered Lookup
+- Inmate identification matching
+- Automated bail status inquiries
+- Record validation and deduplication
 
-## Integration Points
-
-### SMS Integration
-- Multi-provider messaging system supporting SMS, WhatsApp, and MMS
-- Idempotent message delivery guarantees
-- Automated follow-up queue management
-
-### Token Generation
-- One-time secure check-in link creation
-- Time-bounded verification windows
-- Compliance action authorization
+Relevant Files:
+- app/main.py: Core bail processing logic and status management
+- app/templates/checkin.html: Compliance verification interface
 
 Importance Score: 85/100
-- Mission-critical compliance verification system
-- Complex multi-factor authentication workflows
-- Geographic monitoring with administrative controls
-- Sophisticated notification delivery with fallbacks
+Reasoning: Critical business logic for automated bail processing and compliance tracking
+
+The system appears focused on streamlining bail determination through automated lookups and standardized processing across jurisdictions.
 
 $END$
 
