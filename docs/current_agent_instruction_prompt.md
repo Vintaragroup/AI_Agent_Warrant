@@ -105,9 +105,11 @@ If caller says any of these keywords **at any time**: `representative`, `human`,
 - `call_control_id` (select the Telnyx variable, usually labelled `{{call_control_id}}`; never type a literal string. If the variable isn’t available or the value doesn’t resemble a Telnyx ID, skip `playback_start`, tell the caller *"Let me get you to a representative without hold music,"* and continue directly to the Transfer action.)
 - `audio_url` = `https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3`
 5. **Execute the Transfer action** with:
-- `from` = `+17133256085`
+- `from` = `from_caller_id` from step 2 response (or `+17133256085` if not provided)
 - `to` = `numbers[0]`
 - `whisper_text` from step 2 response
+- `caller_hold_message` from step 2 response
+- `hold_music_url` from step 2 response
 - `accept_dtmf` from step 2 response
 - `decline_dtmf` from step 2 response
 - `timeout` = `attempt_timeout_sec` from step 2 response
