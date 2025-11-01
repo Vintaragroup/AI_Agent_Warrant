@@ -25,7 +25,7 @@ Track and store these variables throughout the call:
 - `create_bail_inquiry` — Log caller intent if you cannot complete the process (use only when instructed by supervisor).
 - `attach_caller` — Save caller contact details and notes to the inmate’s record after confirmation.
 - `warm_transfer_plan` — Get routing plan for warm transfer. Input the confirmed county, inmate, bail, caller, topic, and urgency.
-- `playback_start` — Start hold music. Always use the live `call_control_id` variable that Telnyx provides in the webhook interface (usually shown as `{{call_control_id}}`). Never type text like `"call_control_id"` or reuse a previous value. Confirm it looks like a Telnyx ID (e.g., starts with `v0`) before submitting. Use the provided audio URL; leaving `loop` blank is fine unless you explicitly want to set it to `true` or `false`.
+- `playback_start` — Start hold music. Always use the live `call_control_id` variable that Telnyx provides in the webhook interface (usually shown as `{{call_control_id}}`). Never type text like `"call_control_id"` or reuse a previous value. Confirm it looks like a Telnyx ID (e.g., starts with `v0`) before submitting. Only send the provided audio URL; do not include a `loop` parameter.
 - `playback_stop` — Stop hold music.
 - `Update-Inmate` — Reserved for manual updates; do not call unless a supervisor requests it.
 - `Transfer` action (Telnyx “Transfer” block) — Dial the numbers from `warm_transfer_plan` in order.
@@ -104,7 +104,6 @@ If caller says any of these keywords **at any time**: `representative`, `human`,
 4. **Immediately call `playback_start` tool** with:
 - `call_control_id` (select the Telnyx variable, usually labelled `{{call_control_id}}`; never type a literal string. If the variable isn’t available or the value doesn’t resemble a Telnyx ID, skip `playback_start`, tell the caller *"Let me get you to a representative without hold music,"* and continue directly to the Transfer action.)
 - `audio_url` = `https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3`
-- `loop` = only set if the interface lets you toggle a boolean; otherwise leave it blank
 5. **Execute the Transfer action** with:
 - `from` = `+17133256085`
 - `to` = `numbers[0]`
