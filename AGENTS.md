@@ -13,43 +13,35 @@
 - Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
 
 
-Bond Compliance Monitoring System integrating location tracking, verification workflows, and bail management capabilities.
+The project implements a bond compliance verification system with three core components:
 
-## Core Components
+## Location Compliance Tracking (Importance: 85)
+`app/main.py`
+- Bond compliance verification through combined GPS and photo evidence
+- Two-step verification workflow for location confirmation
+- One-time token system for secure compliance checks
+- Admin-triggered compliance verification notifications
 
-### Compliance Verification System
-- Location-based check-in mechanism with dual-mode verification (GPS + photo)
-- Token-based workflow for bond compliance validation
-- Real-time location accuracy monitoring with radius visualization
-- Explicit refusal tracking for compliance documentation
-- Geographic boundary enforcement with multi-jurisdiction support
+## Multi-Provider Notification Engine (Importance: 70)
+`app/sms.py`
+- Hierarchical message routing across Telnyx, Twilio, and WhatsApp
+- Media attachment handling for compliance evidence
+- Mission-critical notification delivery with provider fallbacks
 
-### Administrative Monitoring
-`app/main.py`:
-- Location visualization dashboard for compliance tracking
-- Time-stamped verification checkpoints
-- County-based routing for multi-jurisdiction management
-- SMS notification integration for compliance requests
+## Geographic Verification (Importance: 65)
+`app/geo.py`
+- Multi-provider location validation
+- VPN/Proxy detection for compliance integrity
+- Location accuracy assessment
+- Verification result caching
 
-### Verification Interfaces
-`app/templates/checkin.html`:
-- Geolocation capture with accuracy reporting
-- Optional facial verification through selfie system
-- Compliance documentation with explicit consent tracking
-- Real-time location validation
+## Compliance Call Management (Importance: 60)
+`app/static/hold/`
+- Compliance-specific audio playback control
+- Verification workflow integration
+- Call streaming optimization
 
-`app/templates/admin_last_area.html`:
-- Geographic compliance boundary visualization
-- Location uncertainty radius mapping
-- Historical tracking interface
-- Time-based monitoring controls
-
-### Compliance Workflow Integration
-- Two-factor verification combining location and photo evidence
-- Multi-jurisdiction compliance boundary management
-- Audit trail maintenance for legal documentation
-- Privacy-aware location tracking implementation
-- Multiple verification modes for different compliance scenarios
+The system uses a multi-layered approach combining location tracking, photo verification, and IP validation to ensure bond compliance, with strict token-based security and comprehensive audit trails.
 
 $END$
 

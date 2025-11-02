@@ -1,53 +1,46 @@
 ---
-description: Core location tracking, geofencing and geographic verification system for bail compliance monitoring
+description: Documents geolocation verification system for compliance tracking including provider chains and accuracy assessment
 ---
 
 
 # location-tracking-system
 
-The location tracking system implements multi-layered geographic verification for bail compliance monitoring:
+The location tracking system implements multi-layered compliance verification through geolocation services:
 
-## Verification Workflows
+## Core Location Verification (Importance Score: 85/100)
+Location tracking powered by cascading provider chain with two main components:
 
-1. Primary Location Check
-- Dual-mode verification combining GPS coordinates with photo evidence
-- Real-time accuracy radius calculations for compliance boundary enforcement
-- Geographic fence validation against authorized zones
-- Explicit consent tracking for location access
+1. Primary Location Services
+- Hierarchical provider fallback (ipinfo → ipapi)
+- Automatic provider switching on failure
+- Location data normalization across providers
+- Accuracy confidence scoring per provider
 
-2. Administrative Monitoring
-- Accuracy radius visualization for location uncertainty ranges
-- Geographic compliance boundary overlay system
-- Time-based location tracking with jurisdiction support
-- Last known position monitoring with confidence metrics
+2. Compliance Validation Rules
+- Geographic boundary verification 
+- Location accuracy thresholds
+- VPN/proxy detection and rejection
+- Historical location pattern analysis
 
-## Location Data Processing
+## Check-in Flow (Importance Score: 75/100)
+Two-phase location compliance verification:
 
-1. Geographic Validation
-- County-based routing and jurisdiction assignment
-- Compliance boundary intersection detection
-- Location accuracy threshold enforcement
-- Time-stamped position logging
+1. Initial Check
+- Real-time GPS coordinate capture
+- Boundary polygon validation
+- Accuracy radius assessment
+- Time window verification
 
-2. Visualization Components
-- Real-time position plotting on administrative interfaces
-- Accuracy circle rendering for location uncertainty
-- Compliant/non-compliant zone highlighting
-- Historical path tracking visualization
+2. Secondary Validation
+- IP-based location cross-reference
+- Provider data correlation
+- Deviation threshold checking
+- Compliance status determination
 
-## Integration Points
-
-Location data flows into:
-- Token-based verification workflows
-- Photo compliance evidence collection
-- SMS notification triggers
-- Multi-jurisdiction compliance monitoring
-
-Importance Score: 85/100
-- Critical for core compliance verification
-- Implements legally-mandated location monitoring
-- Supports multi-factor verification workflows
-- Provides essential administrative oversight capabilities
+Core files:
+- `app/geo.py`: Location service integration and verification logic
+- `app/templates/checkin.html`: Location capture interface
+- `app/templates/admin_last_area.html`: Location monitoring dashboard
 
 $END$
 

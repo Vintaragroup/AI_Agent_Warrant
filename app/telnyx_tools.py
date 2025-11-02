@@ -1171,13 +1171,33 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     body = _compose_agent_sms(
         county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
     )
+    provider_response = None
+    error_msg = None
     try:
-        res = send_sms(to, body)
-        logs.insert_one({"type":"notify_agent_sms","to":to,"body":body,"ts":int(time.time()),"res":res})
-        return {"ok": True, "provider_response": res}
+        provider_response = send_sms(to, body)
+        logs.insert_one({
+            "type": "notify_agent_sms",
+            "ts": int(time.time()),
+            "to": to,
+            "body": body,
+            "res": provider_response
+        })
     except Exception as e:
-        logs.insert_one({"type":"notify_agent_sms_error","to":to,"err":str(e),"ts":int(time.time())})
-        raise HTTPException(500, "Failed to send SMS")
+        error_msg = str(e)
+        logs.insert_one({
+            "type": "notify_agent_sms_error",
+            "ts": int(time.time()),
+            "to": to,
+            "body": body,
+            "err": error_msg
+        })
+
+    return {
+        "ok": True,
+        "sent": provider_response is not None,
+        "provider_response": provider_response,
+        "error": error_msg
+    }
 
 @router.get("/agents")
 async def list_agents(request: Request):

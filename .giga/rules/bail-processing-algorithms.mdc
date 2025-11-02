@@ -1,37 +1,48 @@
 ---
-description: Specification for bail status processing, inmate lookup, and automated bail inquiry systems
+description: Specification for bail processing algorithms including bond verification, eligibility determination, and compliance tracking
 ---
 
 
 # bail-processing-algorithms
 
-The bail processing system implements automated workflows for managing bail status inquiries and inmate lookups.
+## Bond Compliance Core (85/100)
+Location: app/main.py
 
-Key Components:
+The bond compliance verification system implements multi-factor validation:
+- GPS coordinate validation against permitted boundaries
+- Photo evidence analysis for in-person verification
+- One-time token generation for compliance check-ins
+- Admin-triggered remote compliance verification
 
-1. Bail Status Processing
-- Automated bail inquiry creation and routing
-- Inmate record lookup and validation
-- Status normalization across jurisdictions
+## Location Verification Engine (75/100)
+Location: app/geo.py
 
-2. Eligibility Determination
-- Multi-jurisdiction bail rules processing 
-- Bond format standardization
-- Compliance verification workflows
+Domain rules for bond location compliance:
+- Multi-source location validation (GPS + IP geolocation)
+- Restricted area boundary checks
+- VPN/proxy detection for verification integrity
+- Cached verification results for frequent checks
 
-3. AI-Powered Lookup
-- Inmate identification matching
-- Automated bail status inquiries
-- Record validation and deduplication
+## Compliance Communication (70/100)
+Location: app/sms.py
 
-Relevant Files:
-- app/main.py: Core bail processing logic and status management
-- app/templates/checkin.html: Compliance verification interface
+Bond-specific notification handling:
+- Provider cascading for critical compliance alerts
+  - Telnyx primary channel
+  - Twilio fallback
+  - WhatsApp secondary fallback
+- Compliance media attachment routing
+- Verification status notifications
+- Missed check-in alerts
 
-Importance Score: 85/100
-Reasoning: Critical business logic for automated bail processing and compliance tracking
+## Hold Process Management (60/100)
+Location: app/static/hold/README.md
 
-The system appears focused on streamlining bail determination through automated lookups and standardized processing across jurisdictions.
+Compliance call processing:
+- Bond verification call flow control
+- Compliance-specific audio management
+- Verification result handling
+- Call recording for audit purposes
 
 $END$
 

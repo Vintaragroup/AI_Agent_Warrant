@@ -1,53 +1,31 @@
 ---
-description: Rules for analyzing complex call transfer routing and agent workflows within the warrant/bail management system
+description: Specification for routing and managing call transfers between agents and systems
 ---
 
 
 # transfer-system-algorithms
 
-## Core Transfer Routing Logic
-Importance Score: 85/100
+From the provided specification files, the transfer system appears to be primarily focused on compliance-related call routing rather than standard agent-to-agent transfers. The key components include:
 
-The transfer system implements specialized routing for warrant and bail-related calls through:
+## Compliance Verification Transfer Flow (Importance Score: 85/100)
+Located in `app/main.py`, this component manages:
+- Routing of compliance verification calls based on bond status
+- Two-step verification integration into transfer paths
+- Token-based routing for secure compliance handoffs
 
-1. Prioritized Agent Selection
-- Jurisdiction-based routing for warrant verification 
-- Language preference matching for multi-lingual support
-- Timezone-aware agent availability scheduling
+## Location-Aware Transfer Logic (Importance Score: 75/100)
+Implemented in `app/geo.py`, this system:
+- Routes transfers based on geographic compliance zones
+- Validates transfer destinations against approved locations
+- Handles location-based compliance verification during transfers
 
-2. Warm Transfer Workflow
-- Agent whisper system providing case context before connection
-- DTMF-based transfer acceptance/rejection flow
-- Configurable hold patterns during agent location
+## Notification Integration (Importance Score: 65/100)
+Found in `app/sms.py`, this module:
+- Manages transfer notifications across multiple providers
+- Coordinates verification messages during transfer workflows
+- Handles media attachments for compliance documentation
 
-3. Case Context Preservation
-- Automated transfer of warrant/case details between agents
-- Preservation of verification state through transfers
-- Multi-party compliance monitoring during transfers
-
-## Geographic Routing Rules 
-
-The system routes transfers based on:
-- County-specific jurisdiction requirements
-- Agent certification levels for specific case types
-- Geographic compliance boundaries
-- Local warrant verification authority
-
-## Compliance Handling
-
-Transfer workflows maintain:
-- Continuous recording for legal documentation
-- Agent authorization verification
-- Case-specific compliance requirements
-- Jurisdiction chain of custody
-
-## Hold Pattern Management
-
-Implements specialized hold management:
-- Case status announcements during hold
-- Compliance reminder messaging
-- Jurisdiction-specific hold requirements
-- Required legal notifications
+The transfer system appears tightly integrated with the compliance verification workflow, focusing on secure handoffs and location-based routing rather than traditional call center transfer patterns.
 
 $END$
 
