@@ -13,35 +13,48 @@
 - Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
 
 
-The project implements a bond compliance verification system with three core components:
+Bond Compliance and Warrant Service System
 
-## Location Compliance Tracking (Importance: 85)
-`app/main.py`
-- Bond compliance verification through combined GPS and photo evidence
-- Two-step verification workflow for location confirmation
-- One-time token system for secure compliance checks
-- Admin-triggered compliance verification notifications
+Core Components:
+1. Location-Based Compliance Verification
+- Two-step verification workflow with photo and GPS requirements
+- IP and GPS-based location tracking with consent management
+- VPN/proxy detection for location integrity
+- Administrative geographic tracking for last known locations
 
-## Multi-Provider Notification Engine (Importance: 70)
-`app/sms.py`
-- Hierarchical message routing across Telnyx, Twilio, and WhatsApp
-- Media attachment handling for compliance evidence
-- Mission-critical notification delivery with provider fallbacks
+2. Case Management Integration
+- Warrant service location monitoring
+- Case-based linking of persons to phone numbers
+- Compliance/refusal event recording with location metadata
+- Automated SMS distribution for tracking links
 
-## Geographic Verification (Importance: 65)
-`app/geo.py`
-- Multi-provider location validation
-- VPN/Proxy detection for compliance integrity
-- Location accuracy assessment
-- Verification result caching
+3. Call Control System
+- County-based routing for warm transfers
+- Telnyx AI integration for inmate status lookups
+- Hold music management during transfers
+- Agent whisper functionality for transfer context
 
-## Compliance Call Management (Importance: 60)
-`app/static/hold/`
-- Compliance-specific audio playback control
-- Verification workflow integration
-- Call streaming optimization
+Business Importance Score: 85/100
 
-The system uses a multi-layered approach combining location tracking, photo verification, and IP validation to ensure bond compliance, with strict token-based security and comprehensive audit trails.
+Key Workflows:
+1. Compliance Check-in
+- Initial preview/notification
+- GPS accuracy verification
+- Optional facial photo capture
+- Location verification against multiple providers
+
+2. Warrant Service
+- Case creation with unique identifiers
+- Location consent handling
+- Geographic monitoring
+- Compliance event tracking
+
+Critical Files:
+- app/main.py: Core compliance verification
+- app/geo.py: Multi-provider location verification
+- app/templates/admin_last_area.html: Location tracking interface
+
+The system specializes in bond compliance monitoring with emphasis on verifiable location tracking, photo documentation, and integration with corrections/legal workflows.
 
 $END$
 

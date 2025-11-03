@@ -1,48 +1,39 @@
 ---
-description: Specification for bail processing algorithms including bond verification, eligibility determination, and compliance tracking
+description: Technical documentation for bail processing algorithms, eligibility rules and bond normalization workflows
 ---
 
 
 # bail-processing-algorithms
 
-## Bond Compliance Core (85/100)
-Location: app/main.py
+Core logic for automating bail processing and eligibility verification.
 
-The bond compliance verification system implements multi-factor validation:
-- GPS coordinate validation against permitted boundaries
-- Photo evidence analysis for in-person verification
-- One-time token generation for compliance check-ins
-- Admin-triggered remote compliance verification
+## Automated Bail Status Lookup
+Workflow for processing and normalizing bail information:
+- Ingests raw bail status data from inmate lookup systems
+- Normalizes bond amounts and types
+- Verifies eligibility based on jurisdiction rules
+- Maintains audit trail of lookups and determinations
 
-## Location Verification Engine (75/100)
-Location: app/geo.py
+## Bail Eligibility Rules Engine
+- Bond type classification (cash, surety, personal recognizance)
+- Jurisdiction-specific validation rules
+- Multi-step eligibility verification process
+- Integration with inmate status verification
 
-Domain rules for bond location compliance:
-- Multi-source location validation (GPS + IP geolocation)
-- Restricted area boundary checks
-- VPN/proxy detection for verification integrity
-- Cached verification results for frequent checks
+## Fast-Path Bail Processing
+Optimized workflow for common bail scenarios:
+- Pre-validated bond templates
+- Automated eligibility pre-screening
+- Quick-path processing for standard bond types
+- Exception handling for non-standard cases
 
-## Compliance Communication (70/100)
-Location: app/sms.py
+Importance Score: 85/100
+The bail processing algorithms represent critical business logic for automating core corrections workflows and ensuring compliance with jurisdictional requirements.
 
-Bond-specific notification handling:
-- Provider cascading for critical compliance alerts
-  - Telnyx primary channel
-  - Twilio fallback
-  - WhatsApp secondary fallback
-- Compliance media attachment routing
-- Verification status notifications
-- Missed check-in alerts
-
-## Hold Process Management (60/100)
-Location: app/static/hold/README.md
-
-Compliance call processing:
-- Bond verification call flow control
-- Compliance-specific audio management
-- Verification result handling
-- Call recording for audit purposes
+Key File Paths:
+- app/main.py: Core bail eligibility determination
+- app/templates/checkin.html: Bond verification interfaces
+- scripts/inspect_simple_collections.py: Bail status normalization
 
 $END$
 

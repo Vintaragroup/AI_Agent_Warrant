@@ -1,31 +1,53 @@
 ---
-description: Specification for routing and managing call transfers between agents and systems
+description: Specification for call routing, transfer workflows, and agent availability algorithms in telecommunications system
 ---
 
 
 # transfer-system-algorithms
 
-From the provided specification files, the transfer system appears to be primarily focused on compliance-related call routing rather than standard agent-to-agent transfers. The key components include:
+The transfer system implements intelligent call routing and warm transfer workflows:
 
-## Compliance Verification Transfer Flow (Importance Score: 85/100)
-Located in `app/main.py`, this component manages:
-- Routing of compliance verification calls based on bond status
-- Two-step verification integration into transfer paths
-- Token-based routing for secure compliance handoffs
+Core Transfer Components:
+1. Agent Availability Management
+- County-based routing tables for agent assignment
+- Time zone aware scheduling system 
+- Language preference matching
+- Agent state tracking (available/busy/offline)
 
-## Location-Aware Transfer Logic (Importance Score: 75/100)
-Implemented in `app/geo.py`, this system:
-- Routes transfers based on geographic compliance zones
-- Validates transfer destinations against approved locations
-- Handles location-based compliance verification during transfers
+2. Warm Transfer Protocol
+- Call hold music integration during transfers
+- Agent whisper system for context sharing
+- Multi-step handoff workflow
+- Pre-transfer notification system
 
-## Notification Integration (Importance Score: 65/100)
-Found in `app/sms.py`, this module:
-- Manages transfer notifications across multiple providers
-- Coordinates verification messages during transfer workflows
-- Handles media attachments for compliance documentation
+3. Queue Management 
+- County-based transfer queues
+- Language-specific routing paths
+- Office hours based routing logic
+- Fallback handling for after-hours calls
 
-The transfer system appears tightly integrated with the compliance verification workflow, focusing on secure handoffs and location-based routing rather than traditional call center transfer patterns.
+Key Business Rules:
+
+1. Agent Assignment Logic:
+- Primary routing based on caller's county
+- Secondary routing based on language match
+- Tertiary routing based on agent availability
+- Final routing based on timezone alignment
+
+2. Transfer Workflow:
+- Initial agent notification
+- Hold music activation
+- Context sharing via whisper
+- Warm handoff completion
+- Call monitoring capabilities
+
+Importance Score: 85/100
+
+The score reflects the critical nature of the transfer system for business operations and the complex routing rules implemented for proper call handling.
+
+Relevant Paths:
+- app/main.py
+- app/telnyx_tools.py
 
 $END$
 

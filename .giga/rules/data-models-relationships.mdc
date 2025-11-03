@@ -1,53 +1,50 @@
 ---
-description: Documentation of core data models, schemas and relationships between system entities
+description: Documentation of core data entity models and their relationships for warrant service and bond compliance tracking
 ---
 
 
 # data-models-relationships
 
-Core data model entities and relationships tracked in the bond compliance system:
+Core Entity Models:
 
-## Primary Entities (Importance: 95/100)
+1. Inmate Records
+- Links to active cases and bond details
+- Phone number and contact associations  
+- Status tracking (active/released)
+- Location history references
 
-1. Inmates/Defendants
-- Central entity for tracking individuals under bond requirements
-- Links to active cases, assigned agents, and compliance records
-- Contains personal information and bond status
+2. Case Management
+- Bond compliance requirements
+- Check-in schedule and verification rules
+- Geographic restrictions and allowed zones
+- Agent assignments
 
-2. Bond Records
-- Tracks bond amounts, conditions, and compliance requirements
-- Associates defendants with specific location restrictions
-- Maintains violation history and compliance status
+3. Location Verification 
+- GPS coordinates with accuracy radius
+- IP-based location fallback data
+- Timestamp and verification method
+- Linked compliance events
 
-3. Compliance Agents 
-- Agency representatives managing defendant cases
-- Permission levels and notification preferences
-- Geographic jurisdiction assignments
+4. Bond Records
+- Amount and payment status
+- Compliance requirements
+- Geographic boundaries
+- Agent oversight assignments
 
-## Key Relationships (Importance: 85/100)
+Key Relationships:
+- Inmates -> Cases (1:N)
+- Cases -> Bond Records (1:1)
+- Inmates -> Location History (1:N) 
+- Cases -> Compliance Events (1:N)
+- Agents -> Cases (N:M)
 
-- One-to-many relationship between Agents and Inmates
-- Many-to-many between Locations and Bond Records
-- One-to-many between Inmates and Compliance Events
-- Direct linking between Bond Records and Location Restrictions
+Relevant Files:
+- app/main.py: Core entity definitions and relationships
+- app/db.py: Data model schemas
+- app/geo.py: Location model integration
 
-## Verification Records (Importance: 80/100)
-
-- GPS check-in coordinates and timestamps
-- Photo verification metadata
-- SMS delivery confirmations
-- Location compliance status updates
-- Token validation history
-
-## Geographic Data (Importance: 75/100)
-
-- Approved location boundaries
-- Check-in coordinates
-- Jurisdiction zones
-- Restricted areas
-- VPN/proxy detection results
-
-The data model prioritizes maintaining complete audit trails of all compliance-related activities while enabling real-time location verification and multi-factor authentication of check-ins.
+Importance Score: 95
+The data models and their relationships form the critical foundation for the warrant service and bond compliance tracking system. The interconnected nature of inmates, cases, locations and compliance events enables the core business functionality.
 
 $END$
 

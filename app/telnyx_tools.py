@@ -1025,10 +1025,12 @@ async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
 
     # Friendly message for the caller while on hold
     caller_hold_msg = "Please hold while I connect you with an agent."
+    primary_number = numbers[0] if numbers else None
 
     return {
         "ok": True,
         "numbers": numbers,
+        "primary_number": primary_number,
         "attempt_timeout_sec": attempt_timeout,
         "hold_music_url": hold_url,
         "whisper_text": whisper,
