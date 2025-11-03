@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     OFFICE_ROUTES_JSON: Optional[str] = None
     # Optional: Fallback transfer number if county not mapped
     DEFAULT_OFFICE_NUMBER: Optional[str] = None
+    # Optional: Static list of transfer targets (overrides schedule/routing when set)
+    STATIC_TRANSFER_NUMBERS_JSON: Optional[str] = None
 
     # Optional: Outbound caller ID for transfer/warm-transfer calls
     # If not set, providers may use DEFAULT_OFFICE_NUMBER when placing outbound calls.

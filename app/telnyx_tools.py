@@ -376,10 +376,36 @@ def _office_phone_for_county(county: Optional[str]) -> Optional[str]:
         return routes.get(key[:-7])
     return settings.DEFAULT_OFFICE_NUMBER
 
+def _static_transfer_numbers() -> List[str]:
+    """Return a static list of transfer numbers when explicitly configured."""
+    raw = getattr(settings, "STATIC_TRANSFER_NUMBERS_JSON", None)
+    if not raw:
+        return []
+    try:
+        data = _json.loads(raw)
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    seen: set[str] = set()
+    out: List[str] = []
+    for entry in data:
+        if not isinstance(entry, str):
+            continue
+        num = _e164(entry)
+        if num and num not in seen:
+            seen.add(num)
+            out.append(num)
+    return out
+
 def _transfer_numbers_by_schedule(county: Optional[str], lang: Optional[str] = None) -> list[str]:
     """Return an ordered list of phone numbers based on OFFICES_SCHEDULE_JSON.
     If no schedule match, fall back to OFFICE_ROUTES_JSON or default.
     """
+    static = _static_transfer_numbers()
+    if static:
+        return static
+
     numbers: list[str] = []
     # Parse schedule JSON
     try:
