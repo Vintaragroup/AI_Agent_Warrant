@@ -122,20 +122,12 @@ def _send_twilio_whatsapp(to_e164: str, body: str) -> dict:
 
 def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dict:
     """Send an SMS using the first available provider.
-    Preference order: Twilio → Telnyx → dev no-op.
+    Preference order: Twilio SMS → Telnyx → dev no-op.
     """
-    # Try Twilio first
-    telnyx_err = None
     twilio_err = None
+    telnyx_err = None
+
     if settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
-        # If WhatsApp is enabled, prefer that channel
-        if getattr(settings, "TWILIO_USE_WHATSAPP", False) and settings.TWILIO_WHATSAPP_FROM:
-            try:
-                return _send_twilio_whatsapp(to_e164, body)
-            except Exception as e:
-                twilio_err = str(e)
-                print(f"[WARN] Twilio WhatsApp failed: {twilio_err}")
-        # Otherwise fallback to SMS via Messaging Service or From number
         if (getattr(settings, "TWILIO_MESSAGING_SERVICE_SID", None) or settings.TWILIO_FROM_NUMBER):
             try:
                 return _send_twilio_sms(to_e164, body, media_url=media_url)
@@ -143,7 +135,6 @@ def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dic
                 twilio_err = str(e)
                 print(f"[WARN] Twilio SMS failed: {twilio_err}")
 
-    # Fallback to Telnyx
     if settings.TELNYX_API_KEY and (settings.TELNYX_MESSAGING_FROM_NUMBER or settings.TELNYX_MESSAGING_PROFILE_ID):
         try:
             return _send_telnyx_sms(to_e164, body, media_url=media_url)
@@ -151,11 +142,10 @@ def send_sms(to_e164: str, body: str, *, media_url: Optional[str] = None) -> dic
             telnyx_err = str(e)
             print(f"[WARN] Telnyx SMS failed: {telnyx_err}")
 
-    # Dev no-op
     print(f"[DEV] SMS to {to_e164}: {body} (media={media_url})")
     return {
         "provider": "dev-noop",
         "status_code": 200,
         "data": {"ok": True, "dev": True},
-        "errors": {"telnyx": telnyx_err, "twilio": twilio_err}
+        "errors": {"telnyx": telnyx_err, "twilio_sms": twilio_err}
     }
