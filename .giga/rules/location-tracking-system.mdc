@@ -1,60 +1,46 @@
 ---
-description: Location tracking system documentation for compliance monitoring and geographic verification workflows
+description: Documentation and technical specifications for location tracking system components, focusing on geolocation verification and compliance monitoring.
 ---
 
 
 # location-tracking-system
 
-The location tracking system implements a multi-provider geolocation verification workflow for bond compliance monitoring:
+The location tracking system implements a multi-provider geolocation verification workflow for bond compliance monitoring.
 
 ## Core Components
 
-1. Provider Fallback Chain
-- Primary GPS consent-based tracking
-- Secondary IP-based location detection
-- Tertiary cell tower triangulation 
-- Final fallback to rough regional estimation
+### Location Verification Chain
+- Multi-provider location verification with configurable fallback sequence
+- Accuracy radius calculations for compliance boundary enforcement
+- Caching of verification results with TTL
+- VPN/proxy detection for security compliance
 
-2. Compliance Verification Logic
-- Mandatory accuracy radius requirements
-- Maximum allowed drift calculations
-- Geographic boundary enforcement
-- Time-window validation for check-ins
+### Geographic Compliance
+- Bond compliance boundary verification
+- Last known location tracking with administrative oversight
+- Geographic fence violation detection
+- Location audit trail with timestamp verification
 
-3. Location Security Measures
-- VPN/proxy detection and blocking
-- Multi-point verification cross-checks
-- Location spoofing prevention
-- Historical pattern analysis
+### Location Data Flow
+Files: `app/geo.py`, `app/main.py`
 
-4. Administrative Tracking
-- Last known area monitoring
-- Geographic violation alerts
-- Compliance boundary management
-- Location history retention
+1. Primary Verification
+- GPS-based location capture
+- Accuracy radius assessment
+- Compliance boundary check
+- VPN detection layer
 
-## Integration Points
-
-1. Check-in Workflow
-- GPS permission capture
-- Accuracy validation
-- Boundary verification
-- Compliance status recording
-
-2. Geographic Data Flow
-- Raw coordinate capture
-- Accuracy radius calculation 
-- Provider verification chain
-- Location persistence
+2. Secondary Verification 
+- Provider fallback chain activation
+- Cached location validation
+- Geographic compliance assessment
+- Violation detection and logging
 
 Importance Score: 85/100
-The location tracking system represents critical business logic for compliance verification and monitoring, with custom implementations for accuracy validation and security measures.
-
-Relevant Files:
-- app/geo.py: Core geolocation logic
-- app/main.py: Compliance verification flows
-- app/templates/admin_last_area.html: Administrative tracking
-- app/templates/checkin.html: Location capture interface
+- Mission-critical compliance verification
+- Multi-layered location validation
+- Security-focused geographic boundary enforcement
+- Audit requirements for location tracking
 
 $END$
 

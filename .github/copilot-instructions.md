@@ -13,48 +13,38 @@
 - Explain your OBSERVATIONS clearly, then provide REASONING to identify the exact issue. Add console logs when needed to gather more information.
 
 
-Bond Compliance and Warrant Service System
+Bond Compliance Monitoring System organizes its core business logic around location-based compliance verification and multi-channel notifications.
 
-Core Components:
-1. Location-Based Compliance Verification
-- Two-step verification workflow with photo and GPS requirements
-- IP and GPS-based location tracking with consent management
-- VPN/proxy detection for location integrity
-- Administrative geographic tracking for last known locations
+Key Business Components:
 
-2. Case Management Integration
-- Warrant service location monitoring
-- Case-based linking of persons to phone numbers
-- Compliance/refusal event recording with location metadata
-- Automated SMS distribution for tracking links
+1. Location Compliance Tracking (`app/main.py`)
+- Bond compliance check-in workflow management
+- Secure location and photo verification processing
+- Compliance/refusal event recording with geolocation
+- Check-in history tracking with verification timestamps
 
-3. Call Control System
-- County-based routing for warm transfers
-- Telnyx AI integration for inmate status lookups
-- Hold music management during transfers
-- Agent whisper functionality for transfer context
+2. Geographic Verification Engine (`app/geo.py`) 
+- Multi-provider location validation system
+- Accuracy radius calculations for compliance boundaries
+- VPN/proxy detection for verification integrity
+- Location verification result caching
 
-Business Importance Score: 85/100
+3. Communication System (`app/sms.py`)
+- Multi-channel compliance notifications (SMS, WhatsApp)
+- Provider fallback routing for guaranteed delivery
+- Compliance alert templating and distribution
 
-Key Workflows:
-1. Compliance Check-in
-- Initial preview/notification
-- GPS accuracy verification
-- Optional facial photo capture
-- Location verification against multiple providers
+Core Business Features:
+- Secure one-time verification tokens
+- Geographic boundary enforcement
+- Comprehensive compliance audit trails
+- Automated violation notifications
 
-2. Warrant Service
-- Case creation with unique identifiers
-- Location consent handling
-- Geographic monitoring
-- Compliance event tracking
-
-Critical Files:
-- app/main.py: Core compliance verification
-- app/geo.py: Multi-provider location verification
-- app/templates/admin_last_area.html: Location tracking interface
-
-The system specializes in bond compliance monitoring with emphasis on verifiable location tracking, photo documentation, and integration with corrections/legal workflows.
+Business Logic Score: 85/100
+- Mission-critical compliance verification
+- Complex geographic validation requirements
+- Multi-provider notification system
+- Specialized bond condition monitoring
 
 $END$
 

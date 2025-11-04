@@ -1,53 +1,35 @@
 ---
-description: Specification for call routing, transfer workflows, and agent availability algorithms in telecommunications system
+description: Documentation for complex transfer routing algorithms including agent scheduling, language preferences, and warm transfer workflows
 ---
 
 
 # transfer-system-algorithms
 
-The transfer system implements intelligent call routing and warm transfer workflows:
+The transfer system implements specialized workflows for warrant service and inmate tracking communications:
 
-Core Transfer Components:
-1. Agent Availability Management
-- County-based routing tables for agent assignment
-- Time zone aware scheduling system 
-- Language preference matching
-- Agent state tracking (available/busy/offline)
+## Agent Availability Routing
+- Consent-based warm transfer system coordinates handoffs between initial contact and law enforcement agents
+- Configurable hold states with custom audio during transfer wait periods
+- Multi-attempt calling sequences with timeout thresholds
 
-2. Warm Transfer Protocol
-- Call hold music integration during transfers
-- Agent whisper system for context sharing
-- Multi-step handoff workflow
-- Pre-transfer notification system
+## Transfer Acceptance Flows
+- DTMF-based accept/decline decision points for receiving agents
+- Agent whisper messaging system provides case context before connection
+- Fallback routing logic when primary agent unavailable
 
-3. Queue Management 
-- County-based transfer queues
-- Language-specific routing paths
-- Office hours based routing logic
-- Fallback handling for after-hours calls
+## Communication Channels
+- Hybrid SMS and voice channel coordination
+- Bail status notification integration
+- Real-time status updates during transfer process
 
-Key Business Rules:
+## Location Integration 
+- Geographic agent assignment based on warrant jurisdiction
+- Last known location tracking during transfer coordination
+- Administrative geofencing for permitted transfer zones
 
-1. Agent Assignment Logic:
-- Primary routing based on caller's county
-- Secondary routing based on language match
-- Tertiary routing based on agent availability
-- Final routing based on timezone alignment
+Importance Score: 75/100
 
-2. Transfer Workflow:
-- Initial agent notification
-- Hold music activation
-- Context sharing via whisper
-- Warm handoff completion
-- Call monitoring capabilities
-
-Importance Score: 85/100
-
-The score reflects the critical nature of the transfer system for business operations and the complex routing rules implemented for proper call handling.
-
-Relevant Paths:
-- app/main.py
-- app/telnyx_tools.py
+The score reflects the specialized nature of law enforcement transfer workflows while acknowledging this is a supporting rather than core system component.
 
 $END$
 

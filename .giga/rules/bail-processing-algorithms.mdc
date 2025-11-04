@@ -1,39 +1,42 @@
 ---
-description: Technical documentation for bail processing algorithms, eligibility rules and bond normalization workflows
+description: Technical documentation for bail status processing including eligibility rules, bond normalization, and status lookups
 ---
 
 
 # bail-processing-algorithms
 
-Core logic for automating bail processing and eligibility verification.
+## Bond Status Processing Components
 
-## Automated Bail Status Lookup
-Workflow for processing and normalizing bail information:
-- Ingests raw bail status data from inmate lookup systems
-- Normalizes bond amounts and types
-- Verifies eligibility based on jurisdiction rules
-- Maintains audit trail of lookups and determinations
+### Bond Format Normalization
+The system standardizes bail amounts and conditions across multiple jurisdictions, implementing:
+- Automatic currency normalization for bond amounts
+- Condition mapping to standardized codes
+- Status transition validation based on bond type
 
-## Bail Eligibility Rules Engine
-- Bond type classification (cash, surety, personal recognizance)
-- Jurisdiction-specific validation rules
-- Multi-step eligibility verification process
-- Integration with inmate status verification
+### Eligibility Rule Engine
+Determines bail eligibility based on:
+- Case classification and severity
+- Prior compliance history 
+- Geographic restrictions
+- Real-time verification against law enforcement databases
 
-## Fast-Path Bail Processing
-Optimized workflow for common bail scenarios:
-- Pre-validated bond templates
-- Automated eligibility pre-screening
-- Quick-path processing for standard bond types
-- Exception handling for non-standard cases
+### Fast-path Bond Status Lookup
+Implements cached lookups for high-volume status checks:
+- Bond reference number validation
+- Eligibility status caching with TTL
+- Multi-jurisdiction status aggregation
+- Status change notification triggers
 
 Importance Score: 85/100
-The bail processing algorithms represent critical business logic for automating core corrections workflows and ensuring compliance with jurisdictional requirements.
+- Critical business rules for bail processing
+- Complex eligibility determination logic
+- Multi-jurisdiction support
+- Real-time status management
 
-Key File Paths:
-- app/main.py: Core bail eligibility determination
-- app/templates/checkin.html: Bond verification interfaces
-- scripts/inspect_simple_collections.py: Bail status normalization
+File Paths:
+- app/main.py: Core bond processing logic
+- app/storage.py: Status caching implementation
+- app/sms.py: Status change notifications
 
 $END$
 

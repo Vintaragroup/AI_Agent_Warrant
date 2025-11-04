@@ -1,50 +1,49 @@
 ---
-description: Documentation of core data entity models and their relationships for warrant service and bond compliance tracking
+description: Documents core data models and relationships between key business entities in bond compliance monitoring system
 ---
 
 
 # data-models-relationships
 
-Core Entity Models:
+Core business domain entities:
 
-1. Inmate Records
-- Links to active cases and bond details
-- Phone number and contact associations  
-- Status tracking (active/released)
-- Location history references
+1. Bond Compliance Records
+- Tracks check-in history and verification status
+- Links between inmates, cases and verification attempts
+- Stores geolocation data and timestamps for compliance events
+- Associates compliance photos with verification sessions
 
-2. Case Management
-- Bond compliance requirements
-- Check-in schedule and verification rules
-- Geographic restrictions and allowed zones
-- Agent assignments
+2. Inmate Management
+- Tracks inmate status, bond details and case assignments
+- Links to bond compliance verification records
+- Associates with agent contact records and notification preferences
+- Maintains audit trail of status changes
 
-3. Location Verification 
-- GPS coordinates with accuracy radius
-- IP-based location fallback data
-- Timestamp and verification method
-- Linked compliance events
+3. Location Verification
+- Caches verified location results with TTL
+- Links geographic coordinates to compliance sessions
+- Associates VPN/proxy detection results
+- Maps boundaries for allowed check-in areas
 
-4. Bond Records
-- Amount and payment status
-- Compliance requirements
-- Geographic boundaries
-- Agent oversight assignments
+4. Communication Records
+- Stores multi-channel notification statuses (SMS, WhatsApp)
+- Links messages to compliance events
+- Tracks message delivery attempts and fallbacks
+- Associates templates with notification types
 
 Key Relationships:
-- Inmates -> Cases (1:N)
-- Cases -> Bond Records (1:1)
-- Inmates -> Location History (1:N) 
-- Cases -> Compliance Events (1:N)
-- Agents -> Cases (N:M)
+- Inmates -> Cases (1:M)
+- Cases -> Bond Records (1:1)  
+- Bond Records -> Compliance Events (1:M)
+- Compliance Events -> Location Verifications (1:1)
+- Agents -> Cases (M:M)
+- Notifications -> Compliance Events (M:1)
 
-Relevant Files:
-- app/main.py: Core entity definitions and relationships
-- app/db.py: Data model schemas
-- app/geo.py: Location model integration
-
-Importance Score: 95
-The data models and their relationships form the critical foundation for the warrant service and bond compliance tracking system. The interconnected nature of inmates, cases, locations and compliance events enables the core business functionality.
+Importance Score: 90/100
+- Critical domain entities for bond compliance
+- Complex relationships between verification components
+- Core audit trail requirements
+- Mission-critical tracking of inmates and cases
 
 $END$
 
