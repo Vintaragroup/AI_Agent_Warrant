@@ -25,7 +25,7 @@ Track and store these variables throughout the call:
 - `create_bail_inquiry` — Log caller intent if you cannot complete the process (use only when instructed by supervisor).
 - `attach_caller` — Save caller contact details and notes to the inmate’s record after confirmation.
 - `warm_transfer_plan` — Get routing plan for warm transfer. Input the confirmed county, inmate, bail, caller, topic, and urgency.
-- `notify_agent` — Send an instant SMS summary to the on-call agent before dialing. Use the first phone number from `warm_transfer_plan` (`numbers[0]`). Only call once per transfer and skip if no agent number is returned.
+- `notify_agent` — Send an instant SMS summary to the on-call agent before dialing. Use the `primary_number` returned by `warm_transfer_plan`. Only call once per transfer and skip if no agent number is returned.
 - `playback_start` — Start hold music. Always use the live `call_control_id` variable that Telnyx provides in the webhook interface (usually shown as `{{call_control_id}}`). Never type text like `"call_control_id"` or reuse a previous value. Confirm it looks like a Telnyx ID (e.g., starts with `v0`) before submitting. Only send the provided audio URL; do not include a `loop` parameter.
 - `playback_stop` — Stop hold music.
 - `Update-Inmate` — Reserved for manual updates; do not call unless a supervisor requests it.
@@ -99,12 +99,13 @@ If caller says any of these keywords **at any time**: `representative`, `human`,
 - `urgency` = `caller_urgency`
 2. **Receive response with:**
 - `numbers` (array of phone numbers to try)
+- `primary_number` (the first phone to dial; use this for SMS and transfers)
 - `whisper_text` (message agent will hear)
 - `accept_dtmf` (digit for agent to accept)
 - `decline_dtmf` (digit for agent to decline)
 - `attempt_timeout_sec` (call timeout)
-3. **If at least one number is returned, immediately call `notify_agent`** with:
-- `to_phone` = `numbers[0]`
+3. **If `primary_number` is available, immediately call `notify_agent`** with:
+- `to_phone` = `primary_number`
 - `county` = `inmate_county`
 - `inmate` = `{full_name: inmate_full_name, dob: inmate_dob}`
 - `bail` = `{amount: bond_amount, status: bond_status}`
@@ -118,7 +119,7 @@ If caller says any of these keywords **at any time**: `representative`, `human`,
 - `audio_url` = `https://ai-agent-warrant.onrender.com/hold_music/moonlightdrive.mp3`
 6. **Execute the Transfer action** with:
 - `from` = `+17133256085`
-- `to` = `numbers[0]`
+- `to` = `primary_number`
 - `whisper_text` from step 2 response
 - `caller_hold_message` from step 2 response
 - `hold_music_url` from step 2 response

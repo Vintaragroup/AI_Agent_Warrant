@@ -1011,17 +1011,76 @@ async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
     topic = (payload.get("topic") or payload.get("subject") or "").strip() or None
     urgency = payload.get("urgency")
 
-    numbers = _transfer_numbers_by_schedule(county, lang)
+    raw_numbers = _transfer_numbers_by_schedule(county, lang)
+    numbers: list[str] = []
+    invalid_numbers: list[str] = []
+    seen_numbers: set[str] = set()
+    for raw in raw_numbers:
+        normalized = _e164(raw)
+        if not normalized:
+            invalid_numbers.append(str(raw))
+            continue
+        if normalized not in seen_numbers:
+            numbers.append(normalized)
+            seen_numbers.add(normalized)
     # Build whisper text for the agent side
     whisper = _compose_whisper_text(
         county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
     )
     # Resolve hold music URL and defaults
     hold_url = getattr(settings, "HOLD_MUSIC_URL", None)
+    if isinstance(hold_url, str):
+        hold_url = hold_url.strip()
+        if hold_url.lower() in {"none", "null", ""}:
+            hold_url = None
+
     attempt_timeout = int(getattr(settings, "DIAL_ATTEMPT_TIMEOUT_SEC", 20) or 20)
-    accept = getattr(settings, "TRANSFER_ACCEPT_DIGIT", "1")
-    decline = getattr(settings, "TRANSFER_DECLINE_DIGIT", "2")
-    from_caller_id = getattr(settings, "OFFICE_CALLER_ID", None) or getattr(settings, "DEFAULT_OFFICE_NUMBER", None)
+
+    accept = getattr(settings, "TRANSFER_ACCEPT_DIGIT", None)
+    if isinstance(accept, str):
+        accept = accept.strip()
+        if accept.lower() in {"none", "null", ""}:
+            accept = None
+    if not accept:
+        accept = "1"
+
+    decline = getattr(settings, "TRANSFER_DECLINE_DIGIT", None)
+    if isinstance(decline, str):
+        decline = decline.strip()
+        if decline.lower() in {"none", "null", ""}:
+            decline = None
+    if not decline:
+        decline = "2"
+
+    from_caller_id = getattr(settings, "OFFICE_CALLER_ID", None)
+    if isinstance(from_caller_id, str):
+        from_caller_id = from_caller_id.strip()
+        if from_caller_id.lower() in {"none", "null", ""}:
+            from_caller_id = None
+    if not from_caller_id:
+        default_office = getattr(settings, "DEFAULT_OFFICE_NUMBER", None)
+        if isinstance(default_office, str):
+            default_office = default_office.strip()
+            if default_office.lower() in {"none", "null", ""}:
+                default_office = None
+        from_caller_id = default_office
+
+    if not numbers:
+        logs.insert_one({
+            "type": "warm_transfer_no_numbers",
+            "ts": int(time.time()),
+            "county": county,
+            "lang": lang,
+            "invalid": invalid_numbers
+        })
+    elif invalid_numbers:
+        logs.insert_one({
+            "type": "warm_transfer_invalid_numbers",
+            "ts": int(time.time()),
+            "county": county,
+            "lang": lang,
+            "invalid": invalid_numbers
+        })
 
     # Friendly message for the caller while on hold
     caller_hold_msg = "Please hold while I connect you with an agent."
