@@ -10,7 +10,7 @@ from .tokens import make_one_time_token, verify_token
 from .storage import upload_photo
 from .sms import send_sms
 from .geo import ip_to_geo
-from .telnyx_tools import router as telnyx_router, _compute_warm_transfer_plan
+from .telnyx_tools import router as telnyx_router, _compute_warm_transfer_plan, _compose_expanded_whisper_text
 
 # ---- App & mounts ----
 app = FastAPI()
@@ -372,6 +372,83 @@ async def dynamic_variables(request: Request):
                 "dynamic_variables": {
                     "primary_number": fallback_number
                 }
+            }
+        )
+
+@app.post("/expanded_whisper")
+async def expanded_whisper(request: Request):
+    """
+    Expanded Agent Whisper Webhook.
+    
+    Called by Telnyx Flow when agent presses 1 (wants more information).
+    Takes the same context data as warm_transfer_plan and returns expanded whisper text
+    with full call details (dates, eligibility, caller info, etc.).
+    
+    Input JSON: { county?, lang?, inmate?, bail?, caller?, summary?, topic?, urgency? }
+    Response JSON:
+    {
+        "ok": true,
+        "expanded_whisper": "string with full call details"
+    }
+    """
+    try:
+        body = await request.json()
+        
+        # Extract context from request
+        county = body.get("county")
+        inmate = body.get("inmate")
+        bail = body.get("bail")
+        caller = body.get("caller")
+        summary = body.get("summary")
+        topic = body.get("topic")
+        urgency = body.get("urgency")
+        
+        logs.insert_one({
+            "type": "expanded_whisper_webhook_received",
+            "ts": int(time.time()),
+            "county": county,
+            "inmate_name": inmate.get("name") if inmate else None
+        })
+        
+        # Generate expanded whisper using the full context
+        expanded_text = _compose_expanded_whisper_text(
+            county=county,
+            inmate=inmate,
+            bail=bail,
+            caller=caller,
+            summary=summary,
+            topic=topic,
+            urgency=urgency
+        )
+        
+        logs.insert_one({
+            "type": "expanded_whisper_generated",
+            "ts": int(time.time()),
+            "whisper_length": len(expanded_text)
+        })
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "expanded_whisper": expanded_text
+            }
+        )
+    
+    except Exception as e:
+        err_msg = str(e)
+        
+        logs.insert_one({
+            "type": "expanded_whisper_error",
+            "ts": int(time.time()),
+            "error": err_msg
+        })
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": err_msg
             }
         )
 
