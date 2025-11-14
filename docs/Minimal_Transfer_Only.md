@@ -33,6 +33,7 @@ Configure your AI Assistant tools to call the following endpoint to get the tran
 In your Assistant flow, use the returned `phone` with Telnyx's connect/transfer action to bridge the live agent.
 
 Optional advanced endpoint (not needed now):
+
 - `POST {BASE_URL}/telnyx/transfer_plan` → returns an ordered array of numbers if/when you enable schedules.
 
 ## Local sanity checks

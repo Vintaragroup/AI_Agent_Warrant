@@ -10,7 +10,7 @@ from .tokens import make_one_time_token, verify_token
 from .storage import upload_photo
 from .sms import send_sms
 from .geo import ip_to_geo
-from .telnyx_tools import router as telnyx_router
+from .telnyx_tools import router as telnyx_router, _compute_warm_transfer_plan
 
 # ---- App & mounts ----
 app = FastAPI()
@@ -282,6 +282,97 @@ async def ai_playback_stop(request: Request):
         return JSONResponse(
             status_code=500,
             content={"ok": False, "error": err_msg}
+        )
+
+# ---- DYNAMIC VARIABLES WEBHOOK FOR TELNYX FLOW ----
+# Called by Telnyx Flow when resolving {{primary_number}} in Transfer action
+
+@app.post("/dynamic-variables")
+async def dynamic_variables(request: Request):
+    """
+    Telnyx Dynamic Variables Webhook.
+    
+    Called by Telnyx Flow to resolve template variables like {{primary_number}}.
+    This endpoint calls the warm transfer plan logic internally to get the current routing
+    number and returns it in the format Telnyx expects.
+    
+    Response format (required by Telnyx):
+    {
+        "dynamic_variables": {
+            "primary_number": "+1XXXXXXXXXX"
+        }
+    }
+    """
+    try:
+        body = await request.json()
+        
+        # Log incoming request for debugging
+        logs.insert_one({
+            "type": "dynamic_variables_webhook_received",
+            "ts": int(time.time()),
+            "payload": body
+        })
+        
+        # Extract context from Telnyx payload (optional, for future use)
+        payload = body.get("data", {}).get("payload", {})
+        
+        # Call the warm transfer plan logic to get the routing number
+        # Pass empty/minimal context since this is just for variable resolution
+        plan_result = _compute_warm_transfer_plan(
+            county=None,
+            lang="en",
+            inmate={},
+            bail={},
+            caller={},
+            summary=None,
+            topic=None,
+            urgency="medium"
+        )
+        
+        # Extract primary_number from the plan result
+        primary_number = plan_result.get("primary_number")
+        
+        if not primary_number:
+            # Fallback to default office number from config
+            primary_number = getattr(settings, "DEFAULT_OFFICE_NUMBER", "+6263796590")
+        
+        logs.insert_one({
+            "type": "dynamic_variables_resolved",
+            "ts": int(time.time()),
+            "primary_number": primary_number
+        })
+        
+        # Return response in exact format Telnyx expects
+        return JSONResponse(
+            status_code=200,
+            content={
+                "dynamic_variables": {
+                    "primary_number": primary_number
+                }
+            }
+        )
+    
+    except Exception as e:
+        err_msg = str(e)
+        
+        # On error, return fallback number
+        fallback_number = getattr(settings, "DEFAULT_OFFICE_NUMBER", "+6263796590")
+        
+        logs.insert_one({
+            "type": "dynamic_variables_error",
+            "ts": int(time.time()),
+            "error": err_msg,
+            "fallback_used": fallback_number
+        })
+        
+        # Still return valid response to prevent Telnyx timeout
+        return JSONResponse(
+            status_code=200,
+            content={
+                "dynamic_variables": {
+                    "primary_number": fallback_number
+                }
+            }
         )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

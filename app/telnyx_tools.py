@@ -984,32 +984,21 @@ async def transfer_plan(payload: Dict[str, Any], request: Request):
         "attempt_timeout_sec": int(settings.DIAL_ATTEMPT_TIMEOUT_SEC or 20)
     }
 
-@router.post("/warm_transfer_plan")
-async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
-    """Return a plan for a warm transfer: numbers to try, hold music URL, and a TTS whisper.
-    Input JSON: { county?, lang?, inmate?, bail?, caller?, summary? }
-    Response JSON:
-    {
-      ok: true,
-      numbers: ["+1..."],
-      attempt_timeout_sec: number,
-      hold_music_url: string|null,
-      whisper_text: string,
-      accept_dtmf: string,
-      decline_dtmf: string,
-      from_caller_id: string|null,
-      caller_hold_message: string
-    }
+def _compute_warm_transfer_plan(county: Optional[str], lang: Optional[str], inmate: Dict[str, Any], 
+                                bail: Dict[str, Any], caller: Dict[str, Any], summary: Optional[str],
+                                topic: Optional[str], urgency: Optional[str]) -> Dict[str, Any]:
     """
-    _auth(request)
-    county = (payload.get("county") or "").strip() or None
-    lang = (payload.get("lang") or "").strip() or None
-    inmate = payload.get("inmate") or {}
-    bail = payload.get("bail") or {}
-    caller = payload.get("caller") or {}
-    summary = (payload.get("summary") or "").strip() or None
-    topic = (payload.get("topic") or payload.get("subject") or "").strip() or None
-    urgency = payload.get("urgency")
+    Core logic for warm transfer plan computation.
+    Extracted to be reusable by both the router endpoint and dynamic variables webhook.
+    """
+    county = (county or "").strip() or None
+    lang = (lang or "").strip() or None
+    inmate = inmate or {}
+    bail = bail or {}
+    caller = caller or {}
+    summary = (summary or "").strip() or None
+    topic = (topic or "").strip() or None
+    urgency = urgency or None
 
     raw_numbers = _transfer_numbers_by_schedule(county, lang)
     numbers: list[str] = []
@@ -1098,6 +1087,44 @@ async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
         "from_caller_id": from_caller_id,
         "caller_hold_message": caller_hold_msg
     }
+
+@router.post("/warm_transfer_plan")
+async def warm_transfer_plan(payload: Dict[str, Any], request: Request):
+    """Return a plan for a warm transfer: numbers to try, hold music URL, and a TTS whisper.
+    Input JSON: { county?, lang?, inmate?, bail?, caller?, summary? }
+    Response JSON:
+    {
+      ok: true,
+      numbers: ["+1..."],
+      attempt_timeout_sec: number,
+      hold_music_url: string|null,
+      whisper_text: string,
+      accept_dtmf: string,
+      decline_dtmf: string,
+      from_caller_id: string|null,
+      caller_hold_message: string
+    }
+    """
+    _auth(request)
+    county = payload.get("county")
+    lang = payload.get("lang")
+    inmate = payload.get("inmate")
+    bail = payload.get("bail")
+    caller = payload.get("caller")
+    summary = payload.get("summary")
+    topic = payload.get("topic") or payload.get("subject")
+    urgency = payload.get("urgency")
+    
+    return _compute_warm_transfer_plan(
+        county=county,
+        lang=lang,
+        inmate=inmate,
+        bail=bail,
+        caller=caller,
+        summary=summary,
+        topic=topic,
+        urgency=urgency
+    )
 
 @router.get("/hold_music")
 async def hold_music(request: Request):
