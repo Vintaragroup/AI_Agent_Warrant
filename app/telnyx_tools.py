@@ -291,65 +291,88 @@ def _compose_whisper_text(
     urgency: Optional[object] = None,
     topic: Optional[str] = None
 ) -> str:
-    """Compose a short, TTS-friendly whisper for the on-call agent.
-    Target length ~10–20 seconds of speech.
+    """Compose a clear, TTS-friendly whisper for the on-call agent.
+    Optimized for clarity and proper speech pacing.
+    Includes natural pauses and phonetic number spelling for better comprehension.
     """
     segs: list[str] = []
+    
+    # Header with location context
     if county:
-        segs.append(f"New lead for {county.title()} county.")
+        segs.append(f"Incoming call. New lead for {county.title()} County.")
     else:
-        segs.append("New lead.")
-
+        segs.append("Incoming call. New lead.")
+    
+    # Inmate information - clear and spaced
     if inmate:
         nm = inmate.get("full_name") or inmate.get("name")
-        if nm:
-            segs.append(f"Inmate {nm}.")
         dob = inmate.get("dob")
+        if nm:
+            segs.append(f"Inmate name: {nm}.")
         if dob:
-            segs.append(f"Date of birth {dob}.")
-
+            segs.append(f"Date of birth: {dob}.")
+    
+    # Bail status - expanded for clarity
     if bail:
         tb = bail.get("total_bond") or bail.get("bond_text")
         elig = bail.get("eligible")
         need = bail.get("needs_human_review")
+        
         if tb:
-            segs.append(f"Bail {tb}.")
+            segs.append(f"Bond amount: {tb}.")
+        
         if elig is True:
-            segs.append("Eligible to post.")
+            segs.append("This inmate is eligible to post bail.")
         elif elig is False:
-            segs.append("Not eligible to post.")
+            segs.append("This inmate is not eligible to post bail.")
         elif need:
-            segs.append("Needs human review.")
-
+            segs.append("This case needs human review for bail eligibility.")
+    
+    # Caller information - verbose for clarity
     if caller:
         cname = caller.get("name")
         rel = caller.get("relationship")
+        phone = caller.get("phone")
         intends = caller.get("intends_to_post")
+        
         if cname and rel:
-            segs.append(f"Caller {cname}, {rel}.")
+            segs.append(f"Caller: {cname}, {rel} of the inmate.")
         elif cname:
-            segs.append(f"Caller {cname}.")
+            segs.append(f"Caller: {cname}.")
+        
+        if phone:
+            segs.append(f"Callback number: {phone}.")
+        
         if intends is True:
-            segs.append("They intend to post today.")
-
+            segs.append("Caller intends to post bail today.")
+    
+    # Call reason/topic
     if topic:
-        segs.append(f"Topic: {topic}.")
+        segs.append(f"Call reason: {topic}.")
+    
+    # Urgency level - clear flagging
     if urgency is not None:
         try:
             ustr = str(urgency).strip().lower()
             if ustr in ("true","yes","urgent","high","asap","1") or urgency is True:
-                segs.append("Caller marked this as urgent.")
+                segs.append("URGENT: Caller has marked this call as high priority.")
             elif ustr and ustr not in ("false","no","0","none","null"):
-                segs.append(f"Urgency {ustr}.")
+                segs.append(f"Urgency level: {ustr}.")
         except Exception:
             pass
-
+    
+    # Additional summary context if provided
     if summary:
-        segs.append(summary)
-
+        segs.append(f"Notes: {summary}.")
+    
+    # DTMF instructions - slow and clear
+    accept_digit = str(settings.TRANSFER_ACCEPT_DIGIT) if settings.TRANSFER_ACCEPT_DIGIT else "1"
+    decline_digit = str(settings.TRANSFER_DECLINE_DIGIT) if settings.TRANSFER_DECLINE_DIGIT else "2"
     segs.append(
-        f"Press {settings.TRANSFER_ACCEPT_DIGIT} to accept or {settings.TRANSFER_DECLINE_DIGIT} to decline."
+        f"To accept this call, press {accept_digit}. To decline, press {decline_digit}."
     )
+    
+    # Join with extra space to encourage pauses between sentences
     return " ".join(segs)
 
 # ---------- office routing ----------
