@@ -1312,23 +1312,50 @@ async def schedule_status(request: Request, county: Optional[str] = None, lang: 
 
 @router.post("/notify_agent")
 async def notify_agent(payload: Dict[str, Any], request: Request):
-    """Send an SMS summary to the on-call agent before/while transferring.
-    Input JSON:
-    - to_phone (E.164, required)
+    """Send an SMS summary to the on-call agent(s) before/while transferring.
+    Input JSON (either single or multiple recipients):
+    - to_phone (E.164, optional) — single recipient (backward compatible)
+    - to_phones (array of E.164, optional) — multiple recipients (e.g., all on-call agents)
+    - agent_name (string, optional) — resolve single agent name to phone
     - county (optional)
     - inmate (object with full_name?, dob?)
     - bail (object with total_bond?, amount_numeric?, eligible?, bond_text?, needs_human_review?)
     - caller (object with name?, phone?, relationship?, intends_to_post?)
     - summary (string, optional freeform notes/summary)
-    Returns: { ok: true }
+    
+    At least one of: to_phone, to_phones, or agent_name must be provided.
+    Returns: { ok: true, sent_count: N, recipients: [...], errors: [...] }
     """
     _auth(request)
-    to = _e164(payload.get("to_phone"))
+    
+    # Gather all recipient phone numbers
+    recipients = []
+    
+    # Option 1: to_phones array (primary for multi-recipient)
+    to_phones_input = payload.get("to_phones")
+    if isinstance(to_phones_input, list):
+        for ph in to_phones_input:
+            normalized = _e164(ph)
+            if normalized:
+                recipients.append(normalized)
+    
+    # Option 2: to_phone single recipient (backward compatible)
+    to_phone_input = payload.get("to_phone")
+    if to_phone_input and not recipients:
+        normalized = _e164(to_phone_input)
+        if normalized:
+            recipients.append(normalized)
+    
+    # Option 3: agent_name lookup (only if no to_phone/to_phones provided)
     agent_name = (payload.get("agent_name") or "").strip() or None
-    if not to and agent_name:
-        to = _agent_phone_from_name(agent_name)
-    if not to:
-        raise HTTPException(400, "Provide 'to_phone' (E.164) or 'agent_name' matching ONCALL_AGENTS_JSON")
+    if agent_name and not recipients:
+        ph = _agent_phone_from_name(agent_name)
+        if ph:
+            recipients.append(ph)
+    
+    if not recipients:
+        raise HTTPException(400, "Provide 'to_phone' (E.164), 'to_phones' (array), or 'agent_name' matching ONCALL_AGENTS_JSON")
+    
     county = (payload.get("county") or "").strip() or None
     inmate = payload.get("inmate") or {}
     bail = payload.get("bail") or {}
@@ -1340,32 +1367,41 @@ async def notify_agent(payload: Dict[str, Any], request: Request):
     body = _compose_agent_sms(
         county=county, inmate=inmate, bail=bail, caller=caller, summary=summary, topic=topic, urgency=urgency
     )
-    provider_response = None
-    error_msg = None
-    try:
-        provider_response = send_sms(to, body)
-        logs.insert_one({
-            "type": "notify_agent_sms",
-            "ts": int(time.time()),
-            "to": to,
-            "body": body,
-            "res": provider_response
-        })
-    except Exception as e:
-        error_msg = str(e)
-        logs.insert_one({
-            "type": "notify_agent_sms_error",
-            "ts": int(time.time()),
-            "to": to,
-            "body": body,
-            "err": error_msg
-        })
+    
+    # Send SMS to all recipients and collect results
+    sent_count = 0
+    errors = []
+    
+    for to in recipients:
+        provider_response = None
+        error_msg = None
+        try:
+            provider_response = send_sms(to, body)
+            sent_count += 1
+            logs.insert_one({
+                "type": "notify_agent_sms",
+                "ts": int(time.time()),
+                "to": to,
+                "body": body,
+                "res": provider_response
+            })
+        except Exception as e:
+            error_msg = str(e)
+            errors.append({"phone": to, "error": error_msg})
+            logs.insert_one({
+                "type": "notify_agent_sms_error",
+                "ts": int(time.time()),
+                "to": to,
+                "body": body,
+                "err": error_msg
+            })
 
     return {
         "ok": True,
-        "sent": provider_response is not None,
-        "provider_response": provider_response,
-        "error": error_msg
+        "sent_count": sent_count,
+        "total_recipients": len(recipients),
+        "recipients": recipients,
+        "errors": errors if errors else None
     }
 
 @router.get("/agents")
