@@ -291,34 +291,81 @@ def _compose_whisper_text(
     urgency: Optional[object] = None,
     topic: Optional[str] = None
 ) -> str:
-    """Compose an ultra-clear, TTS-friendly whisper for the on-call agent.
-    Optimized for Telnyx TTS clarity: short sentences, pauses between data, 
-    phonetic number spacing, critical info early in output (best TTS quality).
+    """Minimal whisper for agent: caller name, inmate name, bond amount.
+    Agent chooses if they want expanded captured data before accepting call.
+    
+    DTMF: 1 = show all captured data, 2 = transfer without more info.
     """
     segs: list[str] = []
     
-    # === HEADER (critical, at start for best TTS quality) ===
-    if county:
-        segs.append(f"Incoming call.")
-        segs.append(f"New lead for {county.title()} County.")
-    else:
-        segs.append("Incoming call. New lead.")
+    # === ESSENTIAL INFO ONLY ===
+    if caller:
+        cname = caller.get("name")
+        if cname:
+            segs.append(f"Caller: {cname}.")
     
-    # === INMATE INFO (each field separate for clarity) ===
+    if inmate:
+        nm = inmate.get("full_name") or inmate.get("name")
+        if nm:
+            segs.append(f"About: {nm}.")
+    
+    if bail:
+        tb = bail.get("total_bond") or bail.get("bond_text")
+        if tb:
+            segs.append(f"Bond: {tb}.")
+    
+    # === AGENT CHOICE PROMPT ===
+    accept_digit = str(settings.TRANSFER_ACCEPT_DIGIT) if settings.TRANSFER_ACCEPT_DIGIT else "1"
+    decline_digit = str(settings.TRANSFER_DECLINE_DIGIT) if settings.TRANSFER_DECLINE_DIGIT else "2"
+    
+    segs.append(f"Press {accept_digit} for more information.")
+    segs.append(f"Press {decline_digit} to transfer the call.")
+    
+    return " ".join(segs)
+
+def _compose_expanded_whisper_text(
+    *,
+    county: Optional[str],
+    inmate: Optional[dict],
+    bail: Optional[dict],
+    caller: Optional[dict],
+    summary: Optional[str],
+    urgency: Optional[object] = None,
+    topic: Optional[str] = None
+) -> str:
+    """Expanded whisper when agent presses 1 for more info.
+    Provides all captured data: dates, eligibility, inmate DOB, caller relationship, call reason, etc.
+    """
+    segs: list[str] = []
+    
+    # === CALLER INFO (detailed) ===
+    if caller:
+        cname = caller.get("name")
+        rel = caller.get("relationship")
+        phone = caller.get("phone")
+        intends = caller.get("intends_to_post")
+        
+        if cname:
+            segs.append(f"Caller: {cname}.")
+        if cname and rel:
+            segs.append(f"{rel} of the inmate.")
+        if phone:
+            clean_phone = phone.replace("(", "").replace(")", "").replace("-", " ").replace("+", "plus ")
+            segs.append(f"Callback: {clean_phone}.")
+        if intends is True:
+            segs.append("Intends to post bail today.")
+    
+    # === INMATE INFO (detailed) ===
     if inmate:
         nm = inmate.get("full_name") or inmate.get("name")
         dob = inmate.get("dob")
         
         if nm:
             segs.append(f"Inmate: {nm}.")
-        
         if dob:
-            # Space out date for phonetic clarity (e.g., "06/15/1992" → "zero six slash one five slash one nine nine two")
-            # But keep readable spacing
-            segs.append(f"Date of birth.")
-            segs.append(f"{dob}.")
+            segs.append(f"Date of birth: {dob}.")
     
-    # === BAIL INFO ===
+    # === BAIL STATUS (detailed) ===
     if bail:
         tb = bail.get("total_bond") or bail.get("bond_text")
         elig = bail.get("eligible")
@@ -326,7 +373,6 @@ def _compose_whisper_text(
         
         if tb:
             segs.append(f"Bond amount: {tb}.")
-        
         if elig is True:
             segs.append("Eligible to post bail.")
         elif elig is False:
@@ -334,70 +380,31 @@ def _compose_whisper_text(
         elif need:
             segs.append("Needs human review.")
     
-    # === CALLER INFO (name and phone are critical - keep separate) ===
-    if caller:
-        cname = caller.get("name")
-        rel = caller.get("relationship")
-        phone = caller.get("phone")
-        intends = caller.get("intends_to_post")
-        
-        # Caller name - separate segment for clarity
-        if cname:
-            segs.append(f"Caller name.")
-            segs.append(f"{cname}.")
-        
-        # Relationship - own segment
-        if cname and rel:
-            segs.append(f"{rel} of the inmate.")
-        
-        # Phone number - CRITICAL: space it out for TTS clarity
-        # Transform: (713) 555-0147 → 713 555 0147 or similar readable format
-        if phone:
-            segs.append(f"Callback number.")
-            # Remove common formatting to let TTS read naturally
-            clean_phone = phone.replace("(", "").replace(")", "").replace("-", " ").replace("+", "plus ")
-            segs.append(f"{clean_phone}.")
-        
-        # Intent - own segment
-        if intends is True:
-            segs.append("Intends to post bail today.")
-    
-    # === CALL REASON ===
+    # === CALL CONTEXT ===
+    if county:
+        segs.append(f"County: {county.title()}.")
     if topic:
-        segs.append(f"Call reason.")
-        segs.append(f"{topic}.")
-    
-    # === URGENCY (at front to emphasize) ===
+        segs.append(f"Call reason: {topic}.")
     if urgency is not None:
         try:
             ustr = str(urgency).strip().lower()
             if ustr in ("true","yes","urgent","high","asap","1") or urgency is True:
-                segs.append("URGENT.")
                 segs.append("High priority call.")
-            elif ustr and ustr not in ("false","no","0","none","null"):
-                segs.append(f"Urgency: {ustr}.")
         except Exception:
             pass
     
-    # === SUMMARY (but keep sentences SHORT to avoid degradation) ===
+    # === SUMMARY/NOTES ===
     if summary:
-        # Break long summary into shorter chunks to prevent end-of-text garbling
         if len(summary) > 60:
-            # Split by sentences or at ~60 char boundary
             parts = summary.split(". ")
             for part in parts:
                 if part.strip():
                     segs.append(f"{part.strip()}.")
         else:
-            segs.append(f"{summary}.")
+            segs.append(f"Notes: {summary}.")
     
-    # === DTMF INSTRUCTIONS (end, but keep short to maintain clarity) ===
-    accept_digit = str(settings.TRANSFER_ACCEPT_DIGIT) if settings.TRANSFER_ACCEPT_DIGIT else "1"
-    decline_digit = str(settings.TRANSFER_DECLINE_DIGIT) if settings.TRANSFER_DECLINE_DIGIT else "2"
-    segs.append(f"Press {accept_digit} to accept.")
-    segs.append(f"Press {decline_digit} to decline.")
+    segs.append("Ready to transfer the call.")
     
-    # Join with spaces - each sentence is natural break point for TTS
     return " ".join(segs)
 
 # ---------- office routing ----------
